@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>話者の特徴を削る敵対的音声デモ</title>
+  <meta name="description" content="時間周波数マスクで話者情報を選択的に削り、音声クローンから声を守る研究のデモ。録音から敵対的音声の生成、クローン比較までをブラウザ内で実行します。">
+  <link rel="preload" href="vendor/inter/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="nav-brand" href="#top">Voice Protection Demo</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="container hero-inner">
+        <div class="hero-copy">
+          <span class="badge badge-hero">音声プライバシー研究</span>
+          <h1>声を守るために、<br>話者の特徴だけを削る。</h1>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#demo">デモを始める</a>
+          </div>
+          <ul class="hero-facts">
+            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#lock"/></svg>音声はブラウザの外へ送信しません</li>
+            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#cpu"/></svg>x-vector + SpeechT5</li>
+          </ul>
+        </div>
+        <div class="hero-art" id="hero-art" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <section class="section" id="demo">
+      <div class="container">
+        <h2>3つのステップで試す</h2>
+        <p class="section-lead">PC のブラウザを推奨します。処理はすべてお使いの端末で実行するため、端末の性能によって時間が変わります。</p>
+        <p class="notice" id="env-notice" hidden></p>
+
+        <article class="step" id="step-record">
+          <header class="step-head">
+            <span class="sticker sticker-purple"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"/></svg></span>
+            <div>
+              <span class="eyebrow">Step 1</span>
+              <h3>声を録音する</h3>
+            </div>
+          </header>
+          <p>好きな言葉で話してください。録音できる声はご本人のものに限ります。</p>
+          <div class="actions">
+            <button class="btn btn-primary" id="record-start" type="button"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"/></svg>録音を開始</button>
+            <button class="btn btn-secondary" id="record-stop" type="button" hidden><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#square"/></svg>録音を停止</button>
+            <span class="timer" id="record-timer" hidden aria-live="off">0.0 秒</span>
+          </div>
+          <p class="hint">5〜8 秒ほどが目安です。無音の部分は自動で取り除き、最長 8 秒を使います。</p>
+          <canvas class="waveform" id="record-wave" hidden aria-label="録音中の音声波形" role="img"></canvas>
+          <p class="error" id="record-error" role="alert" hidden></p>
+          <div class="result" id="record-result" hidden>
+            <div class="audio-row">
+              <span class="audio-label" id="record-audio-label">録音した音声</span>
+              <audio id="record-audio" controls preload="metadata" aria-labelledby="record-audio-label"></audio>
+            </div>
+          </div>
+        </article>
+
+        <article class="step is-locked" id="step-attack">
+          <header class="step-head">
+            <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"/></svg></span>
+            <div>
+              <span class="eyebrow">Step 2</span>
+              <h3>敵対的音声を生成する</h3>
+            </div>
+          </header>
+          <p>録音からマスクを最適化し、話者の特徴を選んだターゲット話者の方向へずらします。</p>
+          <fieldset class="targets" id="target-group">
+            <legend>ターゲット話者</legend>
+            <div class="target-list">
+              <div class="target">
+                <label class="target-choice"><input type="radio" name="target" value="female" checked><span>女性話者</span></label>
+                <div class="audio-row">
+                  <span class="audio-label" id="target-female-label">参照音声</span>
+                  <audio id="target-female-audio" controls preload="metadata" src="assets/targets/female.wav" aria-labelledby="target-female-label"></audio>
+                </div>
+              </div>
+              <div class="target">
+                <label class="target-choice"><input type="radio" name="target" value="male"><span>男性話者</span></label>
+                <div class="audio-row">
+                  <span class="audio-label" id="target-male-label">参照音声</span>
+                  <audio id="target-male-audio" controls preload="metadata" src="assets/targets/male.wav" aria-labelledby="target-male-label"></audio>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset class="segmented" id="steps-group">
+            <legend>反復回数</legend>
+            <label><input type="radio" name="steps" value="50"><span>50<small>速度優先</small></span></label>
+            <label><input type="radio" name="steps" value="100" checked><span>100<small>標準</small></span></label>
+            <label><input type="radio" name="steps" value="200"><span>200<small>実験と同じ条件</small></span></label>
+          </fieldset>
+          <div class="actions">
+            <button class="btn btn-primary" id="attack-start" type="button" disabled><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"/></svg>生成を開始</button>
+            <button class="btn btn-secondary" id="attack-cancel" type="button" hidden><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#x"/></svg>中止</button>
+          </div>
+          <div class="progress" id="attack-progress" hidden>
+            <div class="progress-track"><div class="progress-fill" id="attack-bar"></div></div>
+            <p class="progress-label" id="attack-status" aria-live="polite"></p>
+          </div>
+          <p class="error" id="attack-error" role="alert" hidden></p>
+          <div class="result" id="attack-result" hidden>
+            <dl class="stats" id="attack-stats"></dl>
+            <div class="audio-grid">
+              <div class="audio-row">
+                <span class="audio-label" id="compare-clean-label">録音した音声</span>
+                <audio id="compare-clean" controls preload="metadata" aria-labelledby="compare-clean-label"></audio>
+              </div>
+              <div class="audio-row">
+                <span class="audio-label" id="compare-adv-label">敵対的音声</span>
+                <audio id="compare-adv" controls preload="metadata" aria-labelledby="compare-adv-label"></audio>
+              </div>
+            </div>
+            <div class="heat-grid">
+              <figure class="heat-figure" id="heat-clean-figure">
+                <figcaption>録音のスペクトログラム</figcaption>
+                <canvas class="heat" id="heat-clean" role="img" aria-label="録音のスペクトログラム"></canvas>
+              </figure>
+              <figure class="heat-figure" id="heat-mask-figure">
+                <figcaption>マスクが削った成分</figcaption>
+                <canvas class="heat" id="heat-mask" role="img" aria-label="マスクが削った時間周波数成分"></canvas>
+              </figure>
+              <figure class="heat-figure" id="heat-adv-figure">
+                <figcaption>敵対的音声のスペクトログラム</figcaption>
+                <canvas class="heat" id="heat-adv" role="img" aria-label="敵対的音声のスペクトログラム"></canvas>
+              </figure>
+            </div>
+            <div class="heat-scale">
+              <span>弱い / 残す</span>
+              <span class="heat-scale-bar"></span>
+              <span>強い / 削る</span>
+              <span class="heat-scale-note">縦軸 0〜8 kHz、横軸は時間</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="step is-locked" id="step-clone">
+          <header class="step-head">
+            <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"/></svg></span>
+            <div>
+              <span class="eyebrow">Step 3</span>
+              <h3>好きな文章でクローンする</h3>
+            </div>
+          </header>
+          <p>入力した文章を、録音と敵対的音声それぞれの話者埋め込みで SpeechT5 に読み上げさせ、結果を比べます。</p>
+          <div class="field">
+            <div class="field-head">
+              <label for="clone-text">読み上げる文章（英語）</label>
+              <span class="counter" id="clone-counter">0 / 200</span>
+            </div>
+            <textarea id="clone-text" rows="3" maxlength="200" lang="en" spellcheck="false">My voice belongs to me, and I never agreed to say these words.</textarea>
+            <p class="hint" id="clone-normalized" aria-live="polite">SpeechT5 は英語専用です。数字は英単語に展開して読み上げます。</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary" id="clone-start" type="button" disabled><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"/></svg>クローンを生成</button>
+            <button class="btn btn-secondary" id="clone-cancel" type="button" hidden><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#x"/></svg>中止</button>
+          </div>
+          <p class="hint"><svg class="icon icon-inline" aria-hidden="true"><use href="assets/icons.svg#cloud-download"/></svg>初回のみ音声合成モデル（約 189 MiB）を Hugging Face から取得し、次回からはブラウザに保存した分を使います。取得するのはモデルだけで、音声や文章は送信しません。</p>
+          <div class="progress" id="clone-progress" hidden>
+            <div class="progress-track"><div class="progress-fill" id="clone-bar"></div></div>
+            <p class="progress-label" id="clone-status" aria-live="polite"></p>
+          </div>
+          <p class="error" id="clone-error" role="alert" hidden></p>
+          <div class="result" id="clone-result" hidden>
+            <div class="clone-grid">
+              <section class="clone-card" id="clone-card-clean">
+                <span class="eyebrow">保護なし</span>
+                <h4>録音からのクローン</h4>
+                <audio id="clone-audio-clean" controls preload="metadata" aria-label="録音からのクローン音声"></audio>
+                <p class="verdict" id="clone-verdict-clean"></p>
+              </section>
+              <section class="clone-card" id="clone-card-protected">
+                <span class="eyebrow">保護あり</span>
+                <h4>敵対的音声からのクローン</h4>
+                <audio id="clone-audio-protected" controls preload="metadata" aria-label="敵対的音声からのクローン音声"></audio>
+                <p class="verdict" id="clone-verdict-protected"></p>
+              </section>
+            </div>
+            <p class="summary" id="clone-summary" hidden></p>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div>
+        <h2 class="footer-title">使用しているモデルとライブラリ</h2>
+        <ul class="footer-list">
+          <li>話者エンコーダ: SpeechBrain spkrec-xvect-voxceleb（Apache-2.0）</li>
+          <li>音声合成: Microsoft SpeechT5 / HiFi-GAN（MIT）、ONNX 変換は Xenova/speecht5_tts</li>
+          <li>ターゲット話者の埋め込みと参照音声: LibriTTS（CC BY 4.0）。参照音声は発話を 16 kHz モノラルに変換し、音量を調整したもの</li>
+          <li>ONNX Runtime Web（MIT）、Inter（OFL-1.1）、Lucide（ISC）</li>
+        </ul>
+      </div>
+      <div>
+        <h2 class="footer-title">プライバシー</h2>
+        <p>録音した音声と入力した文章は、お使いのブラウザの中でのみ処理します。ページを閉じると録音は消えます。ブラウザに保存するのは音声合成モデルだけです。</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
