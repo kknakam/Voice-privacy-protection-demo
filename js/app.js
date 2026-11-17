@@ -13,7 +13,15 @@ const $ = (id) => document.getElementById(id);
 const fmt = (v) => v.toFixed(3);
 const engine = new Engine();
 
-const state = { wave: null, attack: null, urls: new Map(), busy: false };
+const state = { wave: null, attack: null, urls: new Map(), busy: false, lang: "en", ja: null };
+
+const EN_HINT = "SpeechT5 は英語専用です。数字は英単語に展開して読み上げます。";
+const JA_HINT_PRESET = "追加学習した日本語モデルで読み上げます。現在は、定型文から選んだ文だけを読み上げられます。";
+const JA_HINT_FREE = "追加学習した日本語モデルで読み上げます。自由に入力できます。定型文以外は、初回に音素化の辞書も読み込みます。";
+let JA_HINT = JA_HINT_PRESET;
+const JA_MAX_CHARS = 60;
+const drafts = { en: null, ja: null };
+const EN_DEFAULT = "My voice belongs to me, and I never agreed to say these words.";
 
 function setUrl(audioId, samples) {
   const old = state.urls.get(audioId);
@@ -43,6 +51,8 @@ function setBusy(busy) {
   $("attack-start").disabled = busy || !state.wave;
   $("clone-start").disabled = busy || !state.attack;
   $("clone-text").disabled = busy;
+  $("clone-preset").disabled = busy;
+  document.querySelectorAll('input[name="clone-lang"]').forEach((r) => (r.disabled = busy));
   document.querySelectorAll('input[name="steps"]').forEach((r) => (r.disabled = busy));
   document.querySelectorAll('input[name="target"]').forEach((r) => (r.disabled = busy));
 }
@@ -237,19 +247,22 @@ async function startAttack() {
 
 let normalizeTimer = 0;
 
+const maxChars = () => (state.lang === "ja" ? JA_MAX_CHARS : MAX_INPUT_CHARS);
+
 function updateCloneInput() {
   const text = $("clone-text").value;
+  const lang = state.lang;
   const counter = $("clone-counter");
-  counter.textContent = `${text.length} / ${MAX_INPUT_CHARS}`;
-  counter.classList.toggle("is-over", text.length > MAX_INPUT_CHARS);
+  counter.textContent = `${text.length} / ${maxChars()}`;
+  counter.classList.toggle("is-over", text.length > maxChars());
   clearTimeout(normalizeTimer);
   normalizeTimer = setTimeout(async () => {
-    const r = await engine.call("normalize", { text }).catch(() => null);
-    if (!r || $("clone-text").value !== text) return;
+    const r = await engine.call("normalize", { text, lang }).catch(() => null);
+    if (!r || $("clone-text").value !== text || state.lang !== lang) return;
     const hint = $("clone-normalized");
     if (r.error) hint.textContent = r.error;
     else if (r.text !== text.trim()) hint.textContent = `読み上げる文: ${r.text}`;
-    else hint.textContent = "SpeechT5 は英語専用です。数字は英単語に展開して読み上げます。";
+    else hint.textContent = lang === "ja" ? JA_HINT : EN_HINT;
     if (!state.busy) $("clone-start").disabled = Boolean(r.error) || !state.attack;
   }, 150);
 }
@@ -294,9 +307,9 @@ async function startClone() {
   const names = { clean: "録音からのクローン", protected: "敵対的音声からのクローン" };
   const order = { clean: 0, protected: 1 };
   try {
-    const data = await engine.call("clone", { text: $("clone-text").value }, (p) => {
+    const data = await engine.call("clone", { text: $("clone-text").value, lang: state.lang }, (p) => {
       if (p.kind === "load" && p.phase === "download") {
-        const verb = p.fromCache ? "保存済みのモデルを読み込んでいます" : "音声合成モデルを取得しています";
+        const verb = p.fromCache ? "保存済みのデータを読み込んでいます" : `${p.what ?? "音声合成モデル"}を取得しています`;
         setProgress("clone-bar", "clone-status", p.loadedMiB / p.totalMiB,
           `${verb}（${p.loadedMiB.toFixed(0)} / ${p.totalMiB.toFixed(0)} MiB）`);
       } else if (p.kind === "load") {
@@ -305,7 +318,7 @@ async function startClone() {
         setProgress("clone-bar", "clone-status", 0, "文章を処理しています...");
       } else if (p.kind === "decode") {
         // 停止位置は事前に分からないので、1文字あたりの典型的なステップ数から見積もる
-        const f = Math.min(0.98, p.step / (p.chars * 2.3 + 8));
+        const f = Math.min(0.98, p.step / (p.expected ?? p.chars * 2.3 + 8));
         setProgress("clone-bar", "clone-status", (order[p.variant] + f) / 2, `${names[p.variant]}を合成しています...`);
       } else if (p.kind === "variant") {
         setUrl(`clone-audio-${p.variant}`, p.wave);
@@ -353,9 +366,47 @@ function drawHeroArt() {
   }
 }
 
+// 日本語モデルが配信されているときだけ、言語の切り替えと定型文の選択を出す
+async function setupJapanese() {
+  const status = await engine.call("jaStatus").catch(() => null);
+  if (!status?.available) return;
+  state.ja = status;
+  JA_HINT = status.freeInput ? JA_HINT_FREE : JA_HINT_PRESET;
+  $("clone-preset").replaceChildren(
+    ...status.presets.map((text) => Object.assign(document.createElement("option"), { value: text, textContent: text })),
+  );
+  $("clone-lang-group").hidden = false;
+  document.querySelectorAll('input[name="clone-lang"]').forEach((r) =>
+    r.addEventListener("change", () => {
+      if (r.checked) setLang(r.value);
+    }),
+  );
+  $("clone-preset").addEventListener("change", () => {
+    $("clone-text").value = $("clone-preset").value;
+    updateCloneInput();
+  });
+}
+
+function setLang(lang) {
+  drafts[state.lang] = $("clone-text").value;
+  state.lang = lang;
+  const ja = lang === "ja";
+  const area = $("clone-text");
+  $("clone-text-label").textContent = ja ? "読み上げる文章（日本語）" : "読み上げる文章（英語）";
+  $("clone-preset-field").hidden = !ja;
+  area.lang = ja ? "ja" : "en";
+  area.maxLength = maxChars();
+  area.value = drafts[lang] ?? (ja ? state.ja.presets[0] : EN_DEFAULT);
+  if (ja) $("clone-preset").value = state.ja.presets.includes(area.value) ? area.value : state.ja.presets[0];
+  $("clone-normalized").textContent = ja ? JA_HINT : EN_HINT;
+  resetClone();
+  updateCloneInput();
+}
+
 function init() {
   drawHeroArt();
   $("clone-counter").textContent = `${$("clone-text").value.length} / ${MAX_INPUT_CHARS}`;
+  setupJapanese();
   const notice = $("env-notice");
   if (!micAvailable()) {
     notice.textContent = "このブラウザまたは接続ではマイクを使用できません。HTTPS で開いた最新のブラウザをご利用ください。";

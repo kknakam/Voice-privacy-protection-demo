@@ -152,9 +152,18 @@
             </div>
           </header>
           <p>入力した文章を、録音と敵対的音声それぞれの話者埋め込みで SpeechT5 に読み上げさせ、結果を比べます。</p>
+          <fieldset class="segmented" id="clone-lang-group" hidden>
+            <legend>読み上げる言語</legend>
+            <label><input type="radio" name="clone-lang" value="en" checked><span>英語<small>SpeechT5 標準</small></span></label>
+            <label><input type="radio" name="clone-lang" value="ja"><span>日本語<small>追加学習したモデル</small></span></label>
+          </fieldset>
+          <div class="field" id="clone-preset-field" hidden>
+            <label for="clone-preset">定型文から選ぶ</label>
+            <select id="clone-preset"></select>
+          </div>
           <div class="field">
             <div class="field-head">
-              <label for="clone-text">読み上げる文章（英語）</label>
+              <label for="clone-text" id="clone-text-label">読み上げる文章（英語）</label>
               <span class="counter" id="clone-counter">0 / 200</span>
             </div>
             <textarea id="clone-text" rows="3" maxlength="200" lang="en" spellcheck="false">My voice belongs to me, and I never agreed to say these words.</textarea>
@@ -199,6 +208,7 @@
         <ul class="footer-list">
           <li>話者エンコーダ: SpeechBrain spkrec-xvect-voxceleb（Apache-2.0）</li>
           <li>音声合成: Microsoft SpeechT5 / HiFi-GAN（MIT）、ONNX 変換は Xenova/speecht5_tts</li>
+          <li>日本語の音素化: Open JTalk と NAIST Japanese Dictionary（いずれも修正 BSD）を WebAssembly に変換して使用</li>
           <li>ターゲット話者の埋め込みと参照音声: LibriTTS（CC BY 4.0）。参照音声は発話を 16 kHz モノラルに変換し、音量を調整したもの</li>
           <li>ONNX Runtime Web（MIT）、Inter（OFL-1.1）、Lucide（ISC）</li>
         </ul>
