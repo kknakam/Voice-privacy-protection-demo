@@ -1,0 +1,87 @@
+{
+ "version": 3,
+ "precision": "fp16 weights (fp32 compute)",
+ "chunk_mib": 20,
+ "files": [
+  {
+   "key": "encoder",
+   "file": "ja_encoder.onnx",
+   "bytes": 186944939,
+   "mib": 178.3,
+   "sha256": "b4b9ee2cf3fc6ffda439b8c724a8b4103d11dc350c619d5dc23edc44c19c7da3",
+   "parts": [
+    "ja_encoder.onnx.part0",
+    "ja_encoder.onnx.part1",
+    "ja_encoder.onnx.part2",
+    "ja_encoder.onnx.part3",
+    "ja_encoder.onnx.part4",
+    "ja_encoder.onnx.part5",
+    "ja_encoder.onnx.part6",
+    "ja_encoder.onnx.part7",
+    "ja_encoder.onnx.part8"
+   ]
+  },
+  {
+   "key": "decoder",
+   "file": "ja_decoder_step.onnx",
+   "bytes": 107988301,
+   "mib": 103.0,
+   "sha256": "f1fd3527722486564c8cf398dbf7b82d7c96c92314554aa0741c404e020002fd",
+   "parts": [
+    "ja_decoder_step.onnx.part0",
+    "ja_decoder_step.onnx.part1",
+    "ja_decoder_step.onnx.part2",
+    "ja_decoder_step.onnx.part3",
+    "ja_decoder_step.onnx.part4",
+    "ja_decoder_step.onnx.part5"
+   ]
+  },
+  {
+   "key": "vocoder",
+   "file": "ja_postnet_vocoder.onnx",
+   "bytes": 27770368,
+   "mib": 26.5,
+   "sha256": "a39eac80427e77cf0e17f655156cc167452850764af5ddd39c463d02d0dd84e1",
+   "parts": [
+    "ja_postnet_vocoder.onnx.part0",
+    "ja_postnet_vocoder.onnx.part1"
+   ]
+  }
+ ],
+ "frontend": {
+  "dir": "dict/",
+  "files": [
+   {
+    "file": "sys.dic",
+    "bytes": 103305451,
+    "mib": 98.5,
+    "sha256": "23287ce5d518164b8b97683b1d9534df095556e446f3470a6c52bd737be74527",
+    "parts": [
+     "sys.dic.part0",
+     "sys.dic.part1",
+     "sys.dic.part2",
+     "sys.dic.part3",
+     "sys.dic.part4"
+    ]
+   },
+   {
+    "file": "unk.dic",
+    "bytes": 5690,
+    "mib": 0.0,
+    "sha256": "f8ce58a6b49795680d68c4f2c5801296d4d3b047b4b7708baa1610f7e2d91f1f"
+   },
+   {
+    "file": "char.bin",
+    "bytes": 262496,
+    "mib": 0.3,
+    "sha256": "1a3ade6a84c0e6b1cfbd04f3803f32aefe37139724359f2a6cc72abf68099b06"
+   },
+   {
+    "file": "matrix.bin",
+    "bytes": 3792262,
+    "mib": 3.6,
+    "sha256": "62fd16b4f64c851d5dc352ef0d5740c5fc83ddc7c203b2b0b1fc5271969a14ce"
+   }
+  ]
+ }
+}
