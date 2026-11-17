@@ -10,6 +10,7 @@
 | 録音 | マイクから録音し、16 kHz モノラルへ変換して無音を除去、最長 8 秒に整形 |
 | 敵対的音声の生成 | ターゲット話者（男性 / 女性）を選び、時間周波数マスクを最適化。反復回数は 50 / 100 / 200。各ターゲットの参照音声を試聴できる |
 | クローン | 利用者が入力した英文を、録音と敵対的音声それぞれの話者埋め込みで SpeechT5 に合成させて比較 |
+| 日本語のクローン | 日本語に追加学習した SpeechT5 で、日本語の文章 (定型文または自由入力) を同様に合成して比較。モデルと辞書は同梱 |
 
 話者エンコーダは生成とクローンで同じ x-vector を使うホワイトボックス条件です。
 
@@ -28,12 +29,16 @@
   js/dsp.js              STFT / ISTFT / fbank の順伝播と随伴
   js/attack.js           マスク最適化 (損失と Adam)
   js/tts.js              入力文の正規化と SpeechT5 の生成ループ
+  js/tts_ja.js           日本語モデルの生成ループ (文の終わりの検出を含む)
+  js/ja_frontend.js      日本語の音素化 (OpenJTalk の WASM と、アクセント結合前の規則)
+  js/ja_g2p.js           フルコンテキストラベルから、音素と韻律記号の ID 列を作る
   js/charts.js           スペクトログラムと波形の描画
   models/xvector_grad.onnx   x-vector の順伝播 + 勾配 (16.1 MiB)
   assets/constants.json  メルフィルタバンク、ターゲット話者の埋め込み、語彙、攻撃の設定
   assets/targets/        ターゲット話者の参照音声 (female.wav, male.wav。LibriTTS の発話)
   assets/icons.svg       Lucide のアイコン
-  vendor/                ONNX Runtime Web, Inter
+  vendor/                ONNX Runtime Web, Inter, OpenJTalk (WASM)
+  models_ja/             日本語モデルと辞書 (20 MiB ごとに分割。manifest.json に大きさと sha256)
 ```
 
 SpeechT5 のモデルは同梱せず、初回に Hugging Face からコミット固定で取得してブラウザに保存します。
@@ -47,6 +52,29 @@ Cloudflare Pages の 1 ファイル上限 (25 MiB) を超えるためです。
 
 デコーダを量子化すると、クローンと本人の類似度は fp16 の 0.941 から 0.860 まで下がります
 (LibriTTS 6 話者、各 3 回の平均。異話者の平均は 0.899)。
+
+## 日本語のクローン
+
+日本語は、Microsoft SpeechT5 を日本語に追加学習したモデルで合成します。英語のモデルとは別に、`models_ja/` に同梱しています。
+
+| 項目 | 内容 |
+|---|---|
+| 入力 | 日本語の文章を OpenJTalk で音素と韻律記号 (アクセント句の境界、ピッチの上昇・下降など) にしたもの。ブラウザ内で、WebAssembly に変換した OpenJTalk を使う |
+| 話者条件 | 英語と同じ x-vector (話者エンコーダは生成とクローンで共通) |
+| モデル | encoder 178.3 MiB、decoder 103.0 MiB、vocoder 26.5 MiB (重みだけ fp16、計算は fp32)。辞書 102 MiB。20 MiB ごとに分割して置き、取得後に大きさと sha256 を確かめる |
+| 学習データ | JVS コーパス (96 話者)、JSUT コーパス (basic5000)、英語を忘れないための LibriTTS の一部。計 約 33 時間、20,000 ステップ。JVS の 4 話者は学習に使わず、評価用にした |
+| 初回の取得 | 約 308 MiB (定型文のみ)。自由入力では、さらに辞書の約 102 MiB |
+
+評価 (学習に使っていない 12 話者 x 15 文。Whisper large-v3 による文字誤り率、x-vector による話者類似度):
+
+| | 文字誤り率 (表記) | 話者類似度 |
+|---|---|---|
+| 自然音声 (JSUT、同じ文) | 0.8% | — |
+| 日本語モデルの合成 | 1.4% | 0.948 |
+
+- デコーダが同じ文を 2 回読んでしまう失敗が、JVS の声で起きやすいため、デコーダの注意から文の終わりを検出して止めています (止めない場合、JVS の未知話者の文字誤り率は 16.6%)
+- 自由入力の音素化は、OpenJTalk の素の版です。学習時の音素化 (Sudachi による読みの補正などを含む) とは、約 4 分の 1 の文で記号列が違います。聞き取りへの影響は小さいと確認していますが、アクセントが不自然になることがあります
+- 評価は少数の話者と文で行ったものです。アクセントの自然さは、文字誤り率では測れていません
 
 ## 実装の考え方
 
@@ -88,6 +116,8 @@ python serve.py                              # http://localhost:8000/
 
 ビルドは不要です。Cloudflare Pages のビルドコマンドは空にし、ビルド出力先を `/` にします。
 
+`models_ja/` の分割ファイルは、1 つが 20 MiB で、Cloudflare の 1 ファイル 25 MiB の上限に収まります。
+
 マルチスレッドに必要な COOP/COEP を設定できないため、GitHub Pages での配信は想定していません。
 その場合もシングルスレッドで動作しますが、処理は遅くなります。
 
@@ -99,8 +129,9 @@ python serve.py                              # http://localhost:8000/
 
 ## 制限
 
-- SpeechT5 は英語専用です。録音は他の言語でも構いませんが、クローンの発話は英語になります
-- 初回に約 189 MiB のモデルを取得します。PC のブラウザを推奨します
+- 英語のモデル (SpeechT5) は英語専用です。録音は他の言語でも構いません。日本語の発話は、日本語のモデルを選んだときだけ合成されます
+- 初回に、英語で約 189 MiB、日本語で約 308 MiB (自由入力ではさらに辞書の約 102 MiB) を取得します。日本語は、ブラウザのメモリも多く使います (開発環境の実測で 1.2〜1.5 GB 程度)。PC のブラウザを推奨します
+- 日本語のモデルは、JVS の声に近い x-vector で、短い文を、同じ文の繰り返しにしてしまうことがあります。終わりの検出で止めていますが、注意が崩れて末尾に届かない場合には効きません
 - SpeechT5 は推論時も dropout が有効なので、同じ入力でも合成結果と類似度は毎回変わります
 - 効果はホワイトボックス条件のものです。他の音声合成モデルへの保護効果は示していません
 
@@ -109,4 +140,6 @@ python serve.py                              # http://localhost:8000/
 - 話者エンコーダ: [SpeechBrain spkrec-xvect-voxceleb](https://huggingface.co/speechbrain/spkrec-xvect-voxceleb) (Apache-2.0)
 - 音声合成: [Microsoft SpeechT5](https://huggingface.co/microsoft/speecht5_tts) / [HiFi-GAN](https://huggingface.co/microsoft/speecht5_hifigan) (MIT)、ONNX 変換は [Xenova/speecht5_tts](https://huggingface.co/Xenova/speecht5_tts)
 - ターゲット話者の埋め込みと参照音声: LibriTTS (CC BY 4.0)。参照音声は話者 1066（女性）と 7553（男性）の発話を 16 kHz モノラルに変換し、音量を調整したもの
+- 日本語の音素化: [Open JTalk](https://open-jtalk.sourceforge.net/) と NAIST Japanese Dictionary (いずれも修正 BSD)。WebAssembly に変換して使用。ライセンスは `vendor/openjtalk/` に同梱
+- 日本語モデルの学習データ: [JVS コーパス](https://arxiv.org/abs/1908.06248) と [JSUT コーパス](https://arxiv.org/abs/1711.00354) (東京大学)、LibriTTS の一部 (CC BY 4.0)。**JVS と JSUT の音声の利用は、学術機関の研究、非営利の研究 (企業内を含む)、個人利用に限られ、再配布は認められていません。** このデモの日本語モデルは、その条件に従い、非営利の研究・個人利用に限って使ってください
 - [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) (MIT)、[Inter](https://github.com/rsms/inter) (OFL-1.1)、[Lucide](https://lucide.dev/) (ISC)
