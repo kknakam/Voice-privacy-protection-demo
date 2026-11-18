@@ -1,0 +1,25 @@
+{/*
+  「研究のシナリオ」の本文。編集したら、npm run build:scenario で site/index.html に反映する。
+  文章は Markdown、図は <Figure> <Flow> <Step> で書く。使えるコンポーネントは、tools/scenario/components.mjs を見る。
+  色 (color): purple = 本人、teal = 保護、orange = 攻撃者、gray = 中立。アイコン (icon) は、site/assets/icons.svg にある名前。
+  段階 1 では、節 1 (何が問題か) だけをこの形に移している。
+*/}
+
+<Block id="scenario-problem" eyebrow="研究背景" title="何が問題なの？">
+
+音声クローニングは、短い音声から声をまねて、好きな文章を話させる技術。
+
+公開した声が入手されると、本人が話していない言葉を、本人の声で作られてしまう。
+
+<Figure caption="保護しない場合の流れ">
+  <Flow>
+    <Step role="本人" icon="globe" color="purple" title="声を公開する">動画や SNS など</Step>
+    <Step role="攻撃者" icon="download" color="orange" title="音声を入手する">短い音声(2~3秒)で十分</Step>
+    <Step role="攻撃者" icon="binary" color="orange" title="声の特徴を数値にする">話者エンコーダが、声の特徴を数値にまとめる</Step>
+    <Step role="攻撃者" icon="audio-lines" color="orange" title="本人の声で合成する">その数値を使い、好きな文章を読み上げさせる</Step>
+  </Flow>
+</Figure>
+
+<Summary>クローンの声を決めるのは、その人の「声の特徴の数値」である。音声から取り出される「数値」が本人のものでなければ、クローンも本人の声にならない。この研究は、この性質を利用する。</Summary>
+
+</Block>

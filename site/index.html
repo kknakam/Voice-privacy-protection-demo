@@ -221,62 +221,55 @@
           </ol>
         </nav>
 
+        <!-- BEGIN scenario-content (自動生成。content/scenario.mdx を編集して、npm run build:scenario を実行する。ここは手で直さない) -->
         <section class="block" id="scenario-problem" aria-labelledby="scenario-problem-title">
           <div>
-            <span class="eyebrow">背景</span>
-            <h3 id="scenario-problem-title">何が問題か</h3>
+            <span class="eyebrow">研究背景</span><h3 id="scenario-problem-title">何が問題なの？</h3>
           </div>
-          <p>音声クローンは、短い音声から声をまねて、好きな文章を話させる技術だ。公開した声が入手されると、本人が話していない言葉を、本人の声で作られてしまう。</p>
+          <p>音声クローニングは、短い音声から声をまねて、好きな文章を話させる技術。</p><p>公開した声が入手されると、本人が話していない言葉を、本人の声で作られてしまう。</p>
           <figure class="diagram">
             <ol class="flow" aria-label="保護しない場合の流れ">
               <li class="flow-step">
                 <div class="flow-card">
-                  <span class="sticker sticker-purple"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#globe"/></svg></span>
+                  <span class="sticker sticker-purple"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#globe"></use></svg></span>
                   <div class="flow-body">
-                    <span class="flow-role">本人</span>
-                    <h4>声を公開する</h4>
-                    <p>動画や SNS など</p>
+                    <span class="flow-role">本人</span><h4>声を公開する</h4><p>動画や SNS など</p>
                   </div>
                 </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
+                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span>
               </li>
               <li class="flow-step">
                 <div class="flow-card">
-                  <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#download"/></svg></span>
+                  <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#download"></use></svg></span>
                   <div class="flow-body">
-                    <span class="flow-role">攻撃者</span>
-                    <h4>音声を入手する</h4>
-                    <p>ごく短い音声で足りる</p>
+                    <span class="flow-role">攻撃者</span><h4>音声を入手する</h4><p>短い音声(2~3秒)で十分</p>
                   </div>
                 </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
+                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span>
               </li>
               <li class="flow-step">
                 <div class="flow-card">
-                  <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#binary"/></svg></span>
+                  <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#binary"></use></svg></span>
                   <div class="flow-body">
-                    <span class="flow-role">攻撃者</span>
-                    <h4>声の特徴を数値にする</h4>
-                    <p>話者エンコーダが、声の特徴を数値にまとめる</p>
+                    <span class="flow-role">攻撃者</span><h4>声の特徴を数値にする</h4><p>話者エンコーダが、声の特徴を数値にまとめる</p>
                   </div>
                 </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
+                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span>
               </li>
               <li class="flow-step">
                 <div class="flow-card">
-                  <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"/></svg></span>
+                  <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"></use></svg></span>
                   <div class="flow-body">
-                    <span class="flow-role">攻撃者</span>
-                    <h4>本人の声で合成する</h4>
-                    <p>その数値を使い、好きな文章を読み上げさせる</p>
+                    <span class="flow-role">攻撃者</span><h4>本人の声で合成する</h4><p>その数値を使い、好きな文章を読み上げさせる</p>
                   </div>
                 </div>
               </li>
             </ol>
             <figcaption>図 1　保護しない場合の流れ</figcaption>
           </figure>
-          <p class="summary">クローンの声を決めるのは、声の特徴の数値だ。公開した音声から取り出される数値が本人のものでなければ、クローンも本人の声にならない。この研究は、この性質を利用する。</p>
+          <p class="summary">クローンの声を決めるのは、その人の「声の特徴の数値」である。音声から取り出される「数値」が本人のものでなければ、クローンも本人の声にならない。この研究は、この性質を利用する。</p>
         </section>
+        <!-- END scenario-content -->
 
         <section class="block protect" id="scenario-defense" aria-labelledby="scenario-defense-title">
           <div>
