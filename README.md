@@ -19,29 +19,32 @@
 
 ```
 ./
-  index.html             画面
-  _headers               Cloudflare Pages 用のレスポンスヘッダ (COOP/COEP, CSP)
-  serve.py               ローカル確認用のサーバ (_headers を再現)
-  css/style.css
-  js/app.js              画面の制御
-  js/tabs.js             「デモ」と「研究のシナリオ」のタブ (ARIA の tabs。URL のハッシュで開く)
-  js/scenario.js         研究のシナリオの図 3 (マスクの掛け算の模式図) を描く
-  js/recorder.js         録音と整形
-  js/engine.js           ワーカーとの受け渡し
-  js/engine.worker.js    重い処理の本体
-  js/dsp.js              STFT / ISTFT / fbank の順伝播と随伴
-  js/attack.js           マスク最適化 (損失と Adam)
-  js/tts.js              入力文の正規化と SpeechT5 の生成ループ
-  js/tts_ja.js           日本語モデルの生成ループ (文の終わりの検出を含む)
-  js/ja_frontend.js      日本語の音素化 (OpenJTalk の WASM と、アクセント結合前の規則)
-  js/ja_g2p.js           フルコンテキストラベルから、音素と韻律記号の ID 列を作る
-  js/charts.js           スペクトログラムと波形の描画
-  models/xvector_grad.onnx   x-vector の順伝播 + 勾配 (16.1 MiB)
-  assets/constants.json  メルフィルタバンク、ターゲット話者の埋め込み、語彙、攻撃の設定
-  assets/targets/        ターゲット話者の参照音声 (female.wav, male.wav。LibriTTS の発話)
-  assets/icons.svg       Lucide のアイコン
-  vendor/                ONNX Runtime Web, Inter, OpenJTalk (WASM)
-  models_ja/             日本語モデルと辞書 (20 MiB ごとに分割。manifest.json に大きさと sha256)
+  README.md
+  tools/serve.py             ローカル確認用のサーバ (site/_headers を再現)
+  site/                      公開する部分 (Cloudflare の出力先)
+    index.html               画面
+    _headers                 Cloudflare 用のレスポンスヘッダ (COOP/COEP, CSP)
+    css/style.css
+    js/site/tabs.js          「デモ」と「研究のシナリオ」のタブ (ARIA の tabs。URL のハッシュで開く)
+    js/site/scenario.js      研究のシナリオの図 3 (マスクの掛け算の模式図) を描く
+    js/demo/app.js           画面の制御
+    js/demo/recorder.js      録音と整形
+    js/demo/capture-worklet.js  録音の取り込み (AudioWorklet)
+    js/demo/engine.js        ワーカーとの受け渡し
+    js/demo/engine.worker.js 重い処理の本体
+    js/demo/charts.js        スペクトログラムと波形の描画
+    js/mask/dsp.js           STFT / ISTFT / fbank の順伝播と随伴
+    js/mask/attack.js        マスク最適化 (損失と Adam)
+    js/tts/tts.js            入力文の正規化と SpeechT5 の生成ループ
+    js/tts/tts_ja.js         日本語モデルの生成ループ (文の終わりの検出を含む)
+    js/tts/ja_frontend.js    日本語の音素化 (OpenJTalk の WASM と、アクセント結合前の規則)
+    js/tts/ja_g2p.js         フルコンテキストラベルから、音素と韻律記号の ID 列を作る
+    models/xvector_grad.onnx   x-vector の順伝播 + 勾配 (16.1 MiB)
+    assets/constants.json    メルフィルタバンク、ターゲット話者の埋め込み、語彙、攻撃の設定
+    assets/targets/          ターゲット話者の参照音声 (female.wav, male.wav。LibriTTS の発話)
+    assets/icons.svg         Lucide のアイコン
+    vendor/                  ONNX Runtime Web, Inter, OpenJTalk (WASM)
+    models_ja/               日本語モデルと辞書 (20 MiB ごとに分割。manifest.json に大きさと sha256)
 ```
 
 SpeechT5 のモデルは同梱せず、初回に Hugging Face からコミット固定で取得してブラウザに保存します。
@@ -58,7 +61,7 @@ Cloudflare Pages の 1 ファイル上限 (25 MiB) を超えるためです。
 
 ## 日本語のクローン
 
-日本語は、Microsoft SpeechT5 を日本語に追加学習したモデルで合成します。英語のモデルとは別に、`models_ja/` に同梱しています。
+日本語は、Microsoft SpeechT5 を日本語に追加学習したモデルで合成します。英語のモデルとは別に、`site/models_ja/` に同梱しています。
 
 | 項目 | 内容 |
 |---|---|
@@ -84,18 +87,18 @@ Cloudflare Pages の 1 ファイル上限 (25 MiB) を超えるためです。
 ONNX Runtime Web には自動微分がありません。そこで勾配の計算を次の 2 つに分けています。
 
 1. **x-vector の部分:** 順伝播と勾配 (解析的な VJP) を 1 つの ONNX にまとめる
-2. **信号処理の部分:** マスクから fbank までの順伝播と随伴を `js/dsp.js` が FFT で計算する
+2. **信号処理の部分:** マスクから fbank までの順伝播と随伴を `site/js/mask/dsp.js` が FFT で計算する
 
 PyTorch の autograd との相対誤差は、ONNX の勾配が 2.2×10⁻⁶、マスクから損失までの全連鎖が 1.8×10⁻⁶ です。
 
 ## 研究のシナリオ (タブ)
 
-- **タブ:** `js/tabs.js` が、「デモ」と「研究のシナリオ」のパネルを `hidden` で切り替えます。パネルは消さないので、録音、生成結果、入力した文章は、タブを往復しても残ります。タブごとにスクロール位置を覚え、再生中の音声は、タブを離れると一時停止します。処理中は、「デモ」のタブに印が出ます
+- **タブ:** `site/js/site/tabs.js` が、「デモ」と「研究のシナリオ」のパネルを `hidden` で切り替えます。パネルは消さないので、録音、生成結果、入力した文章は、タブを往復しても残ります。タブごとにスクロール位置を覚え、再生中の音声は、タブを離れると一時停止します。処理中は、「デモ」のタブに印が出ます
 - **URL:** `#scenario` で直接開けます。`#step-clone` のような、デモ内の要素を指すハッシュでも、タブを切り替えてその位置へ移動します。戻る・進むにも対応します。`app.js` とは独立なので、エンジンの読み込みが失敗しても、タブは使えます
-- **図:** 流れの図は HTML と CSS だけで描きます (1040px 以上で横並び、それより狭いと縦並び)。「加工する / しない」の切り替えはラジオボタンと CSS (`:has()`) だけで動きます。図 3 の格子は `js/scenario.js` が、図 6 の模式図は SVG で描きます。CSP (`style-src 'self'`) に合わせて、インラインの style と script は使いません
+- **図:** 流れの図は HTML と CSS だけで描きます (1040px 以上で横並び、それより狭いと縦並び)。「加工する / しない」の切り替えはラジオボタンと CSS (`:has()`) だけで動きます。図 3 の格子は `site/js/site/scenario.js` が、図 6 の模式図は SVG で描きます。CSP (`style-src 'self'`) に合わせて、インラインの style と script は使いません
 - **色:** 紫 = 本人、青緑 = 保護、橙 = 攻撃者 (クローン)。各カードに、役割を文字でも書いています
 - **内容:** タブは、研究の想定場面と仕組みの解説に絞っています。検証の数値は載せず、下の「ブラウザでの検証結果」に書いています。図 6 の位置や距離は、模式図で、実際の値ではありません
-- **アイコン:** [Lucide](https://lucide.dev/) 1.74.0 の SVG を、`assets/icons.svg` に取り込んでいます
+- **アイコン:** [Lucide](https://lucide.dev/) 1.74.0 の SVG を、`site/assets/icons.svg` に取り込んでいます
 
 ## ブラウザでの検証結果
 
@@ -116,28 +119,28 @@ Chromium の疑似マイクに LibriTTS の音声を入力し、画面操作で�
 
 ## ローカルで動かす
 
-COOP/COEP が付かないとシングルスレッドになるので、`_headers` を再現するサーバを使います。
+COOP/COEP が付かないとシングルスレッドになるので、`site/_headers` を再現するサーバを使います。
 
 ```bash
-python serve.py                              # http://localhost:8000/
+python tools/serve.py                        # http://localhost:8000/ (リポジトリの直下で実行)
 ```
 
 マイクは `localhost` か HTTPS でのみ使えます。
 
 ## 公開する (GitHub + Cloudflare Pages)
 
-ビルドは不要です。Cloudflare Pages のビルドコマンドは空にし、ビルド出力先を `/` にします。
+ビルドは不要です。Cloudflare Pages のビルドコマンドは空にし、ビルド出力先 (Assets directory) を `site` にします。公開されるのは `site/` の中だけです。
 
-`models_ja/` の分割ファイルは、1 つが 20 MiB で、Cloudflare の 1 ファイル 25 MiB の上限に収まります。
+`site/models_ja/` の分割ファイルは、1 つが 20 MiB で、Cloudflare の 1 ファイル 25 MiB の上限に収まります。
 
 マルチスレッドに必要な COOP/COEP を設定できないため、GitHub Pages での配信は想定していません。
 その場合もシングルスレッドで動作しますが、処理は遅くなります。
 
 ## 素材について
 
-`models/xvector_grad.onnx`、`assets/constants.json`、`assets/targets/` は、研究用のコードから生成したものです。生成用のコードはこのリポジトリに含みません。
+`site/models/xvector_grad.onnx`、`site/assets/constants.json`、`site/assets/targets/` は、研究用のコードから生成したものです。生成用のコードはこのリポジトリに含みません。
 
-攻撃の設定（学習率、損失の重みなど）は `assets/constants.json` の `attack` にあります。Beta の β だけは、Beta 探索の採用値である 1.0 に揃えています。
+攻撃の設定（学習率、損失の重みなど）は `site/assets/constants.json` の `attack` にあります。Beta の β だけは、Beta 探索の採用値である 1.0 に揃えています。
 
 ## 制限
 

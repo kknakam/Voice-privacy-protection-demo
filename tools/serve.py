@@ -1,9 +1,9 @@
 """
-このフォルダを、Cloudflare Pages と同じ _headers を付けてローカル配信する。
+このリポジトリの site/ を、Cloudflare と同じ _headers (site/_headers) を付けてローカル配信する。
 
 マイクは localhost でも使える。COOP/COEP が付くのでマルチスレッドの動作も確認できる。
 
-実行コマンド: python serve.py [ポート番号]  (既定 8000)
+実行コマンド: python tools/serve.py [ポート番号]  (既定 8000。リポジトリの直下で実行)
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import sys
 from functools import partial
 from pathlib import Path
 
-SITE = Path(__file__).resolve().parent
+SITE = Path(__file__).resolve().parent.parent / "site"
 
 
 def parse_headers(path: Path) -> list:

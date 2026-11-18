@@ -1,12 +1,12 @@
 // 重い処理をすべて引き受けるワーカー。音声はこのワーカーとメインスレッドの間でしか受け渡さない。
-import * as ort from "../vendor/ort/ort.wasm.bundle.min.mjs";
-import { SignalChain } from "./dsp.js";
-import { MaskAttack, cosine } from "./attack.js";
-import { Cancelled, SpeechT5, encodeText, normalizeText } from "./tts.js";
-import { SpeechT5Ja, normalizeJa } from "./tts_ja.js";
-import { JaFrontend } from "./ja_frontend.js";
+import * as ort from "../../vendor/ort/ort.wasm.bundle.min.mjs";
+import { SignalChain } from "../mask/dsp.js";
+import { MaskAttack, cosine } from "../mask/attack.js";
+import { Cancelled, SpeechT5, encodeText, normalizeText } from "../tts/tts.js";
+import { SpeechT5Ja, normalizeJa } from "../tts/tts_ja.js";
+import { JaFrontend } from "../tts/ja_frontend.js";
 
-const base = new URL("../", import.meta.url);
+const base = new URL("../../", import.meta.url);
 // バンドル版は JS のグルーを内蔵しているので、wasm の場所だけを指定する
 ort.env.wasm.wasmPaths = { wasm: new URL("vendor/ort/ort-wasm-simd-threaded.wasm", base).href };
 ort.env.wasm.numThreads = self.crossOriginIsolated
@@ -237,7 +237,7 @@ async function loadFrontend(progress) {
   if (!fe) throw new Error("日本語の音素化の辞書が見つかりません。");
   const total = fe.files.reduce((n, f) => n + f.mib, 0);
   let loaded = 0;
-  const createOpenJTalk = (await import("../vendor/openjtalk/jt.mjs")).default;
+  const createOpenJTalk = (await import("../../vendor/openjtalk/jt.mjs")).default;
   // OpenJTalk が変換できない入力で出す警告 (標準エラー出力) は、画面のエラーとして扱うのでコンソールには出さない
   const module = await createOpenJTalk({ print: () => {}, printErr: () => {} });
   module.FS.mkdir("/dic");

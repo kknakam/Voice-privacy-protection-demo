@@ -1,7 +1,7 @@
 import { Engine } from "./engine.js";
 import { MicError, MicRecorder, micAvailable, prepareRecording, wavUrl } from "./recorder.js";
 import { attachHeatTooltip, drawHeatmap, drawWaveform } from "./charts.js";
-import { MAX_INPUT_CHARS } from "./tts.js";
+import { MAX_INPUT_CHARS } from "../tts/tts.js";
 
 const SAMPLE_RATE = 16000;
 const HOP = 256;
