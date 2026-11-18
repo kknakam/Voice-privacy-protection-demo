@@ -47,6 +47,7 @@ function showError(id, message) {
 
 function setBusy(busy) {
   state.busy = busy;
+  $("tab-demo-busy").hidden = !busy;   // 別のタブを見ている間も、デモの処理中だと分かるようにする
   $("record-start").disabled = busy;
   $("attack-start").disabled = busy || !state.wave;
   $("clone-start").disabled = busy || !state.attack;
@@ -429,6 +430,12 @@ function init() {
     engine.cancel();
   });
   $("clone-text").addEventListener("input", updateCloneInput);
+  // 波形は表示幅を読んで描くので、別のタブで描いた分は、戻ったときに描き直す
+  document.addEventListener("tabchange", (e) => {
+    if (e.detail.tab === "demo" && state.wave && !recorder && !$("record-wave").hidden) {
+      drawWaveform($("record-wave"), state.wave, "#31302e");
+    }
+  });
 }
 
 init();
