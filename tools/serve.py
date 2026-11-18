@@ -2,6 +2,7 @@
 このリポジトリの site/ を、Cloudflare と同じ _headers (site/_headers) を付けてローカル配信する。
 
 マイクは localhost でも使える。COOP/COEP が付くのでマルチスレッドの動作も確認できる。
+_headers に Cache-Control の指定がないファイルには no-cache を付け、編集した内容が、ブラウザの古い保存分に隠れないようにする。
 
 実行コマンド: python tools/serve.py [ポート番号]  (既定 8000。リポジトリの直下で実行)
 """
@@ -40,10 +41,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def end_headers(self):
         url = self.path.split("?")[0]
+        has_cache_control = False
         for pattern, headers in RULES:
             if fnmatch.fnmatch(url, pattern):
                 for key, value in headers:
                     self.send_header(key, value)
+                    has_cache_control = has_cache_control or key.lower() == "cache-control"
+        if not has_cache_control:
+            # _headers に指定がないファイルは、毎回、更新を確かめさせる。付けないと、ブラウザは、最終更新から
+            # 経った時間の約 10% の間 (古いファイルなら、1 日以上)、編集したファイルを、古いまま使い続ける
+            self.send_header("Cache-Control", "no-cache")
         super().end_headers()
 
     def log_message(self, *args):

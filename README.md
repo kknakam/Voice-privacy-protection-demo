@@ -127,6 +127,8 @@ python tools/serve.py                        # http://localhost:8000/ (リポジ
 
 マイクは `localhost` か HTTPS でのみ使えます。
 
+このサーバは、`site/_headers` に `Cache-Control` の指定がないファイルに `no-cache` を付け、編集した内容が、ブラウザの古い保存分に隠れないようにします。以前のサーバで保存された古いファイルが残っていて、表示が更新されないときは、DevTools の Network で「Disable cache」にして再読み込みするか、ブラウザのキャッシュを消去してください。
+
 ## 公開する (GitHub + Cloudflare Pages)
 
 ビルドは不要です。Cloudflare Pages のビルドコマンドは空にし、ビルド出力先 (Assets directory) を `site` にします。公開されるのは `site/` の中だけです。
