@@ -1,0 +1,26 @@
+# サーバ (Step 2: 敵対的音声の生成と、Step 3: クローンの合成) の依存パッケージ。
+#   pip install -r requirements.txt
+# サイトの配信だけ (Step 2 を使わない) なら、Python の標準ライブラリだけで動く (tools/serve.py)。
+#
+# 動作確認済みの環境: Python 3.10、NVIDIA ドライバ 570 (CUDA 12.8)、PyTorch 2.8.0。
+# 版は、動作を確かめたものに固定している。上げるときは、scripts/check_env.sh --smoke で確かめること。
+# このサーバが import するのは、下のものだけ (研究のリポジトリは、クローン用などの、もっと広い依存を持つが、ここでは使わない。
+# 研究のコードが任意で読む pesq と pystoi は、このサーバでは使わないので、入れなくてよい)。
+
+# PyTorch。PyPI の Linux 版は CUDA 12.8 用。研究室の GPU とドライバがこれに合わないときは、先に、合う版を入れる。
+#   例 (CUDA 12.6 用): pip install torch==2.8.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu126
+torch==2.8.0
+torchaudio==2.8.0
+
+# x-vector (speechbrain/spkrec-xvect-voxceleb)。重みは、実行時にネットから取らない (HF_HUB_OFFLINE=1)。scripts/copy_weights.sh で置く
+speechbrain==1.0.3
+huggingface_hub==1.14.0    # speechbrain が使う。新しい版との組み合わせは、確かめていない
+
+numpy==2.2.6
+scipy==1.15.3
+soundfile==0.13.1          # WAV の読み書き。libsndfile は、pip で入る版に含まれる
+
+# 音声合成 (Step 3)。モデルは、サーバの起動時に 1 回だけ読み込む (server/tts.py)
+transformers==5.2.0        # 英語: Microsoft SpeechT5 と HiFi-GAN (PyTorch)。GPU があれば GPU で動かす。重みは scripts/copy_weights.sh で置く
+onnxruntime==1.23.2        # 日本語: 日本語に追加学習した SpeechT5 (ONNX。CPU。重みは、リポジトリの site/models_ja/)
+pyopenjtalk-plus==0.4.1.post10   # 日本語の音素化 (Open JTalk)。Linux の Python 3.10 用には、ビルド済みの配布がある (コンパイラは要らない)

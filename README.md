@@ -3,14 +3,14 @@
 私が研究で取り組んだ手法を用いて簡易的なデモサイトを作成するリポジトリ
 
 その場で録音した声から敵対的音声を生成し、音声クローンへの保護効果を確かめるサイトです。
-敵対的音声の生成 (Step 2) は、研究室のサーバ (Python、GPU) で行い、録音をそのサーバへ送ります。音声合成とクローンの比較 (Step 3) は、ブラウザの中で行います。
+敵対的音声の生成 (Step 2) と、音声合成によるクローンの比較 (Step 3) は、どちらも研究室のサーバ (Python、GPU) で行い、録音と、入力した文章を、そのサーバへ送ります。ブラウザは、録音、画面、再生を受け持ちます。
 
 | 機能 | 内容 |
 |---|---|
 | 録音 | マイクから録音し、16 kHz モノラルへ変換して無音を除去、最長 8 秒に整形 |
 | 敵対的音声の生成 | 録音の話者から、いちばん遠い話者を、候補 24 人から自動で選び (ターゲット話者。参照音声を試聴できる)、時間周波数マスクを最適化。反復回数は 50 / 100 / 200。「残した情報の割合」(マスクの平均値)、SNR、UTMOS (測定値 / 5.0。録音の値も添える) を表示。サーバで処理し、混み合うと順番待ち |
-| クローン | 利用者が入力した英文を、録音と敵対的音声それぞれの話者埋め込みで SpeechT5 に合成させて比較 |
-| 日本語のクローン | 入力した文章に、ひらがな・カタカナ・漢字が 1 字でもあれば、日本語に追加学習した SpeechT5 で合成して比較する (言語の選択欄はない。なければ英語)。モデルと辞書は同梱 |
+| クローン | 利用者が入力した文章を、録音と敵対的音声それぞれの話者埋め込みで SpeechT5 に合成させて比較 (サーバで合成。英語は PyTorch、日本語は ONNX Runtime) |
+| 日本語のクローン | 入力した文章に、ひらがな・カタカナ・漢字が 1 字でもあれば、日本語に追加学習した SpeechT5 で合成して比較する (言語の選択欄はない。なければ英語)。モデルは `server/models_ja/` にあり、サーバが読み込む |
 | 研究のシナリオ | 別のタブ (URL の `#scenario` で直接開ける) で、研究が想定する場面、守る仕組み (デモの Step との対応を含む)、敵対的音声のつくり方、結果の読み方、条件と限界を、図で説明。デモの録音や結果は、タブを切り替えても残る |
 
 話者エンコーダは生成とクローンで同じ x-vector を使うホワイトボックス条件です。生成には、研究のリポジトリ (anticloning_mask) の最適化のコードを、そのまま使います (このリポジトリには含みません)。
@@ -21,19 +21,28 @@
 ./
   README.md
   package.json               MDX から HTML を作るのに使う (サイトの配信には使わない)
+  requirements.txt           サーバ (Step 2) の Python の依存パッケージ (版を固定)
   content/scenario.mdx       「研究のシナリオ」のタブの本文 (これを編集する)
   content/demo.mdx           「デモ」のタブの本文 (これを編集する)
   tools/scenario/            MDX を HTML にする (build.mjs) と、その部品 (components.mjs: シナリオ用と共通、demo-components.mjs: デモ用)
   tools/serve.py             サイトだけを配信する簡易サーバ (site/_headers を再現。Step 2 の API は無い)
   server/                    敵対的音声を作るサーバ (Python)
-    app.py                   サイトと API を 1 つで配信。順番待ち、1 件ずつ処理、録音は処理後に削除
+    app.py                   サイトと API を 1 つで配信。敵対的音声の生成と、クローンの合成は、別の順番待ちで 1 件ずつ処理。録音と文章は処理後に削除
     core.py                  最適化と測定の本体 (研究のコードを import)
+    tts.py                   音声合成 (Step 3) の本体: 英語の文章の正規化、日本語の音素化・分割・生成、x-vector による類似度。モデルは、起動時に 1 回だけ読み込む
     attack_cli.py            録音から敵対的音声を作るコマンド
     build_pool.py            ターゲット話者の候補群を作る (開発用)
-    test_core.py             GPU を使わない部分の試験
+    test_core.py             敵対的音声の生成のうち、GPU を使わない部分の試験
+    test_tts.py              音声合成のうち、モデルを使わない部分の試験 (英語の正規化、日本語の音素化と分割)
+    check_api.py             起動中のサーバの、クローンの合成の API の通し試験 (モデルを実際に使う)
     data/pool.npz            候補 24 人の x-vector
+    data/tts.json            音声合成の語彙と記号表 (モデルの学習時のものと同じ。変更しない)
+    models_ja/               日本語の音声合成のモデル (ONNX。20 MiB ごとに分割。manifest.json に大きさと sha256)
+    testdata/                試験の正解データ (ブラウザで動かしていた実装の結果など)
     env.example              環境設定の書き方 (server/env.local にコピーして書き換える。env.local は git に入れない)
-  scripts/                   実行の入口のシェルスクリプト (serve.sh、run_attack.sh、build_pool.sh)
+    weights/*.sha256         重み (x-vector、英語の SpeechT5、UTMOS) の SHA-256 の一覧 (scripts/copy_weights.sh が照合に使う)
+  scripts/                   実行の入口のシェルスクリプト (serve.sh、start.sh / stop.sh / status.sh、run_attack.sh、check_env.sh、copy_weights.sh、tunnel.sh、build_pool.sh)
+  deploy/                    研究室のサーバへ置くための雛形 (systemd、Cloudflare Tunnel、nginx)
   site/                      公開する部分 (Cloudflare の出力先)
     index.html               画面 (「デモ」と「研究のシナリオ」のパネルの中身は、MDX から生成した部分。見出し画面とフッターは手書き)
     _headers                 Cloudflare 用のレスポンスヘッダ (COOP/COEP, CSP)
@@ -44,48 +53,33 @@
     js/demo/app.js           画面の制御
     js/demo/recorder.js      録音と整形
     js/demo/capture-worklet.js  録音の取り込み (AudioWorklet)
-    js/demo/api.js           サーバの API (録音の送信、順番待ちと進み具合、結果の受け取り)
-    js/demo/engine.js        ワーカーとの受け渡し
-    js/demo/engine.worker.js 重い処理の本体
+    js/demo/api.js           サーバの API (録音の送信、クローンの依頼、入力中の案内、順番待ちと進み具合、結果の受け取り)
     js/demo/charts.js        スペクトログラムと波形の描画
-    js/mask/dsp.js           fbank の計算 (Step 3 で、クローンの話者の特徴を取り出す)
-    js/mask/vector.js        ベクトルの計算 (クローンの類似度)
-    js/tts/tts.js            入力文の正規化と SpeechT5 の生成ループ
-    js/tts/tts_ja.js         日本語モデルの生成ループ (文の終わりの検出、長い文の分割を含む)
-    js/tts/ja_frontend.js    日本語の音素化 (OpenJTalk の WASM と、アクセント結合前の規則)
-    js/tts/ja_g2p.js         フルコンテキストラベルから、音素と韻律記号の ID 列を作る
-    models/xvector_grad.onnx   x-vector (16.1 MiB)。Step 3 で、クローンの話者の特徴を取り出す
-    assets/constants.json    メルフィルタバンク、語彙など (攻撃の設定とターゲット話者は、サーバ側にある)
     assets/targets/          ターゲット話者の候補 24 人の参照音声 (<話者の番号>.wav。LibriTTS の発話。server/data/pool.npz と対応)
     assets/icons.svg         Lucide のアイコン
     assets/illust/           シナリオの図に使うイラスト (任意。使い方は「研究のシナリオを編集する」)
-    vendor/                  ONNX Runtime Web, Inter, OpenJTalk (WASM), BudouX
-    models_ja/               日本語モデルと辞書 (20 MiB ごとに分割。manifest.json に大きさと sha256)
+    vendor/                  Inter、Lucide、BudouX
 ```
 
-SpeechT5 のモデルは同梱せず、初回に Hugging Face からコミット固定で取得してブラウザに保存します。
-Cloudflare Pages の 1 ファイル上限 (25 MiB) を超えるためです。
+## 英語のクローン
 
-| ファイル | サイズ | 理由 |
-|---|---|---|
-| `encoder_model_bnb4.onnx` | 48.4 MiB | 量子化しても声の再現性と発音が fp32 と同等 |
-| `decoder_model_merged_fp16.onnx` | 114.0 MiB | 量子化すると声の再現性が大きく落ちるため fp16 |
-| `decoder_postnet_and_vocoder_fp16.onnx` | 26.5 MiB | 同上 |
+英語は、Microsoft SpeechT5 と HiFi-GAN (PyTorch、`transformers`) で、サーバが合成します (`server/tts.py`)。GPU があれば GPU で動かします (環境変数 `TTS_DEVICE`)。CPU でも動きますが、94 文字の文で 1 本あたり約 10 秒かかります (GPU では約 2.7 秒、GPU のメモリ 約 710 MiB)。
 
-デコーダを量子化すると、クローンと本人の類似度は fp16 の 0.941 から 0.860 まで下がります
-(LibriTTS 6 話者、各 3 回の平均。異話者の平均は 0.899)。
+- **文章の正規化:** 語彙が英語の文字と一部の記号だけなので、数字を英単語に展開し (`12` は `twelve`、`3rd` は `third`、`$5` は `five dollars`、`50%` は `fifty percent`)、語彙にない文字を除きます。英語以外の文字 (ギリシャ文字、キリル文字など) があれば、英語で入力するよう案内します。200 文字までです。この規則は、以前ブラウザで動かしていた実装と同じで、66 件の入力で、結果が一致することを確かめています (`server/testdata/normalize_en.json`、`server/test_tts.py`)
+- **話者条件:** 録音と敵対的音声の x-vector (サーバが Step 2 の結果として返したもの)
+- **上限:** 止まらない場合に備えて、入力長の「10 倍」と「6 倍 + 100」の小さいほうのステップ数で止めます
 
 ## 日本語のクローン
 
-日本語は、Microsoft SpeechT5 を日本語に追加学習したモデルで合成します。英語のモデルとは別に、`site/models_ja/` に同梱しています。
+日本語は、Microsoft SpeechT5 を日本語に追加学習したモデルで、サーバが合成します。モデルは、リポジトリの `server/models_ja/` にあります (公開用の `site/` には含めません)。
 
 | 項目 | 内容 |
 |---|---|
-| 入力 | 自由に入力した日本語の文章 (60 文字まで) を OpenJTalk で音素と韻律記号 (アクセント句の境界、ピッチの上昇・下降など) にしたもの。ブラウザ内で、WebAssembly に変換した OpenJTalk を使う |
+| 入力 | 自由に入力した日本語の文章 (60 文字まで) を、サーバの pyopenjtalk-plus (Open JTalk) で、音素と韻律記号 (アクセント句の境界、ピッチの上昇・下降など) にしたもの |
 | 話者条件 | 英語と同じ x-vector (話者エンコーダは生成とクローンで共通) |
-| モデル | encoder 178.3 MiB、decoder 103.0 MiB、vocoder 26.5 MiB (重みだけ fp16、計算は fp32)。辞書 102 MiB。20 MiB ごとに分割して置き、取得後に大きさと sha256 を確かめる |
+| モデル | encoder 178.3 MiB、decoder 103.0 MiB、vocoder 26.5 MiB (重みだけ fp16、計算は fp32。ONNX Runtime、CPU)。20 MiB ごとに分割して置き、読み込むときに、大きさと sha256 を確かめる |
 | 学習データ | JVS コーパス (96 話者)、JSUT コーパス (basic5000)、英語を忘れないための LibriTTS の一部。計 約 33 時間、20,000 ステップ。JVS の 4 話者は学習に使わず、評価用にした |
-| 初回の取得 | 約 410 MiB (モデル 約 308 MiB と、音素化の辞書 約 102 MiB) |
+| 読み込みと速度 | サーバの起動時に 1 回だけ読み込む (英語のモデルと合わせて約 20 秒)。1 回の合成 (2 本) は、短い文で約 4 秒、長い文 (入力長 100 以上) で約 7〜9 秒 (CPU 4 スレッド、他の処理と並行した状態での測定)。以前のブラウザ版は、11〜19 秒でした |
 
 評価 (学習に使っていない 12 話者 x 15 文。Whisper large-v3 による文字誤り率、x-vector による話者類似度):
 
@@ -95,23 +89,25 @@ Cloudflare Pages の 1 ファイル上限 (25 MiB) を超えるためです。
 | 日本語モデルの合成 | 1.4% | 0.948 |
 
 - デコーダが同じ文を 2 回読んでしまう失敗が、JVS の声で起きやすいため、デコーダの注意から文の終わりを検出して止めています (止めない場合、JVS の未知話者の文字誤り率は 16.6%)
-- 長い文 (音素と韻律記号の数が 100 以上。60 文字の入力の多くが当たります) では、JVS の声に近い声で、途中の語句が抜けたり繰り返されたりすることがあり、終わりの検出では防げません。生成し直しても同じ失敗が起きるため、100 以上の文は、ポーズの位置で 60 記号以内の区間に分け、区間ごとに合成して、0.1 秒の無音を挟んでつなぎます (`site/js/tts/tts_ja.js` の `splitIds` と `joinWaves`。区間ごとに合成する処理は `site/js/demo/engine.worker.js`)。設定は評価の前に固定し、設定の選択に使っていない新しい長文 24 文を、話者 8 人、本人と保護後の声で合成して、読みの文字誤り率が 0.2 を超えた件を数えました。JVS の話者 4 人で 31/192 (16.1%) から 1/192 (0.5%)、JVS 以外の話者 4 人で 0/192 のまま (悪化した件はなし) でした。つなぎ目の自然さ (間、声の高さの段差) は、自動では測っていません
+- 長い文 (音素と韻律記号の数が 100 以上。60 文字の入力の多くが当たります) では、JVS の声に近い声で、途中の語句が抜けたり繰り返されたりすることがあり、終わりの検出では防げません。生成し直しても同じ失敗が起きるため、100 以上の文は、ポーズの位置で 60 記号以内の区間に分け、区間ごとに合成して、0.1 秒の無音を挟んでつなぎます (`server/tts.py` の `split_ids` と `JaSynth.synthesize`)。設定は評価の前に固定し、設定の選択に使っていない新しい長文 24 文を、話者 8 人、本人と保護後の声で合成して、読みの文字誤り率が 0.2 を超えた件を数えました。JVS の話者 4 人で 31/192 (16.1%) から 1/192 (0.5%)、JVS 以外の話者 4 人で 0/192 のまま (悪化した件はなし) でした。つなぎ目の自然さ (間、声の高さの段差) は、自動では測っていません
 - 自由入力の音素化は、OpenJTalk の素の版です。学習時の音素化 (Sudachi による読みの補正などを含む) とは、約 4 分の 1 の文で記号列が違います。聞き取りへの影響は小さいと確認していますが、アクセントが不自然になることがあります
 - 評価は少数の話者と文で行ったものです。アクセントの自然さは、文字誤り率では測れていません
 
 ## 実装の考え方
 
-処理は、2 か所に分かれています。
+処理は、サーバとブラウザに分かれています。
 
 | 場所 | 処理 |
 |---|---|
-| サーバ (Python、GPU) | Step 2: 録音の x-vector を求め、候補 24 人のうち、いちばん遠い話者をターゲットにする。研究の `run_mask_attack` (Adam、勾配のクリッピング、Beta 損失、音響損失) でマスクを最適化する。残した情報の割合 (マスクの平均値)、SNR、UTMOS を測る |
-| ブラウザ | Step 3: 録音と敵対的音声の x-vector (サーバが返す) を話者条件にして、SpeechT5 で合成する。合成した声の x-vector を、ONNX Runtime Web で取り出して、本人・ターゲットとの類似度を測る |
+| サーバ (Python、GPU) | Step 2: 録音の x-vector を求め、候補 24 人のうち、いちばん遠い話者をターゲットにする。研究の `run_mask_attack` (Adam、勾配のクリッピング、Beta 損失、音響損失) でマスクを最適化する。残した情報の割合 (マスクの平均値)、SNR、UTMOS を測る。<br>Step 3: 文章を、英語は正規化し、日本語は音素化して、録音と敵対的音声の x-vector で、SpeechT5 で 2 本合成する。合成した声の x-vector (SpeechBrain) を取り出して、本人・ターゲットとの類似度を測る |
+| ブラウザ | 録音と整形、画面の制御、スペクトログラムと波形の描画、音声の再生。サーバへは、録音 (Step 2)、文章と x-vector (Step 3) を送り、結果を受け取ります |
 
 サーバの流れ: `POST /api/jobs` で WAV を受け取ると、順番待ちの列に入れます。GPU は 1 件ずつ使い、`scripts/run_attack.sh` を、別のプロセスで呼びます。録音は、処理が終わるとすぐ、サーバのディスクから消し、結果 (音声、統計、x-vector、スペクトログラム) は、取りに来るまでメモリにだけ置きます (取ると消え、取りに来なければ 10 分で捨てます)。
 
-- **入力の確認:** 16 kHz・モノラル・16 bit の WAV だけを受け付けます (ブラウザは、この形で送ります)。大きさは 1 MiB まで、長さは 8 秒までです。反復回数は 50 / 100 / 200 だけです。シェルに渡す引数は、サーバが決めた値だけで、利用者の文字列は渡しません
-- **順番待ち:** 同じ接続元から、同時に出せるのは 1 件です。順番待ちが 5 件を超えると、受け付けません (環境変数 `MAX_QUEUE` で変えられます)。1 件の上限は 300 秒です
+Step 3 の流れ: `POST /api/clones` で、文章と、Step 2 の結果の x-vector (本人、保護後、ターゲット) を受け取ります。合成は、サーバのプロセスの中で 1 件ずつ行い (モデルは、起動時に 1 回だけ読み込みます)、敵対的音声の生成とは別の順番待ちで、同時に動けます。文章は、処理が終わるとすぐに捨て、サーバの記録には、言語と文字数と所要時間だけを残します (文章そのものは残しません。予期しない例外の記録も、型名だけです)。入力中の案内 (正規化した文、エラー) は `POST /api/normalize` で返します (モデルは使いません)。
+
+- **入力の確認:** 録音は、16 kHz・モノラル・16 bit の WAV だけを受け付けます (ブラウザは、この形で送ります)。大きさは 1 MiB まで、長さは 8 秒までです。反復回数は 50 / 100 / 200 だけです。文章は、日本語 60 文字、英語 200 文字までで、依頼の JSON は 32 KiB まで、x-vector は、長さ 512 の有限な数列だけを受け付けます。シェルに渡す引数は、サーバが決めた値だけで、利用者の文字列は渡しません
+- **順番待ち:** 同じ接続元から、同時に出せるのは 1 件です (Step 2 と Step 3 をまたいで)。順番待ちは、それぞれ 5 件を超えると、受け付けません (環境変数 `MAX_QUEUE` で変えられます)。敵対的音声の生成は 1 件 300 秒、クローンの合成は 2 本で 180 秒が上限です
 - **ターゲットの候補:** LibriTTS の 101 人の x-vector の平均から、互いに遠い 24 人を選びました (最遠点サンプリング。話者どうしの類似度の平均は 0.904)。`scripts/build_pool.sh` で作り直せます
 
 ## 研究のシナリオ (タブ)
@@ -178,8 +174,24 @@ npm run build:demo           # デモだけ (build:scenario は、シナリオ�
 
 - 画面に表示された類似度は、保存した音声を PyTorch の x-vector で測り直した値と一致しました
 - WER の差の主因は、Whisper が "twenty-five dollars" を "$25" と書き起こすなどの表記揺れです
-- **サーバ版 (現行) の再測定は、未実施です。** 動作の確認だけ行いました: 録音 (疑似マイク) から、サーバでの生成、結果の表示、日本語のクローンの判定まで、画面の操作で通しました。録音 1 件 (約 6 秒) の生成は、反復 100 回で、サーバ内の処理が約 6 秒 (GPU)、モデルの読み込みと音質の測定を含めた全体で約 16 秒です
+- **Step 2 (敵対的音声) の、サーバ版での FSR と WER の再測定は、未実施です。** 動作の確認だけ行いました: 録音 (疑似マイク) から、サーバでの生成、結果の表示、クローンの判定まで、画面の操作で通しました。録音 1 件 (約 6 秒) の生成は、反復 100 回で、サーバ内の処理が約 6 秒 (GPU)、モデルの読み込みと音質の測定を含めた全体で約 16 秒です
 - 1 件の録音で測った例 (反復 100 回): 残した情報の割合 (マスクの平均値) 約 91%、SNR 約 6.5 dB、UTMOS 4.17 → 3.67。ターゲットとの類似度が、0.874 から 0.974 に上がります。なお、元の音声のエネルギーで重みを付けると、残る分は 45% ほどです (エネルギーの大きい成分が、先に削られるため)。画面には、マスクの平均値を出します
+
+### サーバ版の音声合成の評価 (Step 3)
+
+音声合成をサーバに移したあとの評価です。話者の x-vector (本人の録音、保護後) で 2 本ずつ合成し、ブラウザ版と同じ指標 (Whisper large-v3 の誤り率、x-vector の類似度) で測りました。
+
+| 言語と文 | 指標 | サーバ版 | 基準 |
+|---|---|---|---|
+| 日本語、JSUT の 15 文 × 6 話者 | 読みの文字誤り率が 0.2 を超えた件 | JVS の声に近い 3 話者で 1/90、それ以外の 3 話者で 0/90 | 同じ話者・同じ文のブラウザ版の評価で、2/90 と 0/90 |
+| 日本語、入力長 100 以上の新しい長文 12 文 × 6 話者 | 同上 | 0/72 と 0/72 (平均の読みの誤り 0.36% と 0.00%) | 同じ話者・同じ文の分割ありの評価で、0/72 と 0/72 |
+| 英語、8 文 × 12 話者 | 単語誤り率 (WER) | 保護なし 0.029、保護あり 0.014 | 以前のブラウザ版 (5 話者、5 文): 0.062 と 0.077 |
+| 英語 | x-vector の類似度 (本人 / ターゲット) | 保護なし 0.954 / 0.815、保護あり 0.849 / 0.933 | 以前のブラウザ版: 0.962 / 0.880 と 0.878 / 0.955 |
+
+- 英語の比較は、話者、文、ターゲットの選び方、x-vector の測り方が、以前とは違うので、絶対値の比較ではなく、同じ水準かを見るためのものです。WER は、数字を英単語に展開してから比べています
+- 日本語の話者 (JVS) の x-vector で英語を読ませると、まれに文を繰り返します (96 組のうち 2 件)。英語には、日本語のような、文の終わりの検出がありません
+- 実ブラウザ (ヘッドレス Chromium) で、録音から日本語・長文・英語のクローンまでを通しました。日本語のクローンは約 4〜5 秒で、以前のブラウザ版の 11〜19 秒より速く、ブラウザは、モデル、辞書、WASM を取得しません (通信の記録で確認)
+- サーバのプロセスは、モデルを常駐させるため、メモリ (RAM) を約 3.0 GiB、GPU のメモリを約 1.4 GiB 使います (起動から数分後の実測)
 
 実際のマイク録音、Firefox / Safari、一般的な PC での速度は未検証です。
 
@@ -187,10 +199,12 @@ npm run build:demo           # デモだけ (build:scenario は、シナリオ�
 
 マイクは `localhost` か HTTPS でのみ使えます。COOP/COEP が付かないとシングルスレッドになるので、`site/_headers` を再現するサーバを使います。
 
-**Step 2 まで使う場合 (サーバ):** Python (PyTorch、speechbrain、soundfile)、GPU、研究のリポジトリ、重みが要ります。
+**Step 2 まで使う場合 (サーバ):** Python (`requirements.txt`)、GPU、研究のリポジトリ、重みが要ります。
 
 ```bash
+pip install -r requirements.txt              # PyTorch、speechbrain など (版は固定。PyTorch の CUDA の版は、requirements.txt の説明を参照)
 cp server/env.example server/env.local      # 研究のリポジトリ、Python、重みの場所を書く。env.local は git に入れない
+scripts/copy_weights.sh --from-hf 元の HF_HOME --from-hub 元の TORCH_HUB_DIR   # 重み (x-vector、UTMOS) を置く。SHA-256 で照合する (詳しくは「公開する」)
 scripts/check_env.sh --smoke                 # 環境の点検 (重み、GPU、候補話者など)。--smoke で、生成を 1 回、実際に通す
 scripts/serve.sh 8000                        # http://localhost:8000/ (サイトと API。前面で動かす)
 scripts/start.sh 8000                        # 同じものを、バックグラウンドで起動 (止める: scripts/stop.sh、状態: scripts/status.sh)
@@ -210,35 +224,67 @@ python tools/serve.py                        # http://localhost:8000/ (リポジ
 
 このサーバは、`site/_headers` に `Cache-Control` の指定がないファイルに `no-cache` を付け、編集した内容が、ブラウザの古い保存分に隠れないようにします。以前のサーバで保存された古いファイルが残っていて、表示が更新されないときは、DevTools の Network で「Disable cache」にして再読み込みするか、ブラウザのキャッシュを消去してください。
 
-## 公開する (研究室のサーバ + Cloudflare Tunnel)
+## 公開する (研究室のサーバ)
 
-Step 2 は Python と GPU が要るので、静的な配信だけ (Cloudflare Pages など) では動きません。サイト全体を、研究室のサーバから `scripts/serve.sh` で配信します。
+Step 2 は Python と GPU が要るので、静的な配信だけ (Cloudflare Pages など) では動きません。サイト全体を、研究室のサーバから `scripts/serve.sh` で配信します。Step 3 (音声合成) は、ブラウザで動くので、サーバは使いません。
 
-1. サーバに、上の「ローカルで動かす」と同じ環境を作ります。`scripts/check_env.sh --smoke` で、足りないものを確かめます
-2. 常駐させます。systemd が使える環境では、`deploy/voice-demo.service` の雛形の `User` とパスを書き換えて、`/etc/systemd/system/` に置き、`systemctl enable --now voice-demo` します。使えない環境 (コンテナなど) では、`scripts/start.sh 8000` を使います (再起動のたびに、起動し直す必要があります)。サーバは、既定で `127.0.0.1` だけで待ち受けます
-3. HTTPS で公開します (マイクは、HTTPS でしか使えません)。Cloudflare Tunnel (`cloudflared`) を使うと、サーバから外向きに接続するだけで、ポートを開けずに、HTTPS で公開できます。
-   - **試す (アカウント不要):** `scripts/tunnel.sh quick 8000` で、一時的な URL (`https://....trycloudflare.com`) が出ます。URL を知っている人は、誰でも、この処理 (GPU) を使えます。確認が終わったら、Ctrl-C で閉じてください
-   - **本番 (名前つき):** Cloudflare に登録したドメインが要ります。`deploy/cloudflared-config.example.yml` の手順で、トンネルを作り、`scripts/tunnel.sh run <トンネル名>` で起動します
-   - `cloudflared` は、環境変数 `CLOUDFLARED`、`server/work/bin/cloudflared`、`PATH` の順に探します (公式の配布: https://github.com/cloudflare/cloudflared/releases)
-4. 前段 (Tunnel) から来る接続の元の IP アドレスは、`CF-Connecting-IP` から読みます (同じ接続元からの同時の処理を 1 件に絞るため)。サーバを、`127.0.0.1` 以外で待ち受けさせる場合は、この読み取りを使わないよう、前段を必ず通してください
+### サーバに要るもの
 
-録音がサーバに届くので、研究室の規定 (同意の取り方、保存、ログ) に合わせて、フッターの「プライバシー」の文面を確認してください。
+| もの | 内容 |
+|---|---|
+| OS と GPU | Linux、NVIDIA の GPU。CPU だけでは、非常に遅くなります (`scripts/run_attack.sh --device cpu`) |
+| 1 件の生成の負荷 | 敵対的音声 (5.7 秒の録音、100 反復): 約 16 秒、GPU のメモリ 約 1.4 GiB、メモリ 約 2.7 GiB。クローンの合成: 英語は GPU で、2 本で約 2 秒。日本語は CPU で、短い文 約 4 秒、長い文 約 7〜9 秒。サーバのプロセスは、モデルを常駐させるので、メモリ 約 3.0 GiB と GPU のメモリ 約 1.4 GiB を、常に使います。2 つの処理は、それぞれ 1 件ずつです。録音が 8 秒 (上限) の場合の値と、他の GPU での動作は、未確認です |
+| Python | 3.10 で動作確認。依存は `requirements.txt` です。PyTorch の CUDA の版は、GPU とドライバに合わせます |
+| 研究のリポジトリ | `anticloning_mask` のコード (約 0.5 MB)。`ANTICLONING_MASK_ROOT` で指します。変更しません |
+| 重み | x-vector 約 32 MB、英語の SpeechT5 とボコーダ 約 1.2 GB (使うのは約 640 MB)、UTMOS 約 411 MB。実行時にネットから取らないので、あらかじめ置きます (手順 5)。日本語の音声合成のモデル (約 308 MiB) は、リポジトリの `server/models_ja/` にあります |
+| HTTPS | マイクは HTTPS か `localhost` でしか使えません。Cloudflare Tunnel か、研究室にある nginx を使います |
 
-`site/models_ja/` の分割ファイルは、1 つが 20 MiB です (Cloudflare Pages の 1 ファイル 25 MiB の上限に合わせた名残です)。
+### 手順
+
+1. **取得**: `git clone` して、公開するブランチをチェックアウトします
+2. **Python の環境**: `python3 -m venv venv && venv/bin/pip install -r requirements.txt`。GPU とドライバが CUDA 12.8 の PyTorch に合わないときは、`requirements.txt` の説明のとおり、先に、合う版を入れます
+3. **研究のリポジトリ**: 研究室のサーバにすでにあれば、その場所を使います
+4. **環境ファイル**: `cp server/env.example server/env.local` として、`ANTICLONING_MASK_ROOT`、`PYTHON` (手順 2 の `venv/bin/python`)、`HF_HOME`、`TORCH_HUB_DIR` を書きます。`LIBRITTS_PARQUET_DIR` と `PYARROW_PATH` は、候補話者を作り直すときだけ要ります。`env.local` は git に入れません 音声合成の設定 (任意): `EXTRA_PYTHONPATH` (venv に入れられないパッケージの場所。import の探索の末尾に足す)、`TTS_DEVICE` (`auto`・`cuda`・`cpu`。既定は `auto`)、`TTS_THREADS` (日本語の CPU の推論の本数。既定は 4)、`TTS_JA_DIR` (日本語モデルの場所)、`TTS_DISABLE=1` (音声合成を使わない)。
+5. **重みを置く**:
+
+   ```bash
+   scripts/copy_weights.sh --from-hf 元のホスト:/path/to/hf --from-hub 元のホスト:/path/to/torch_hub
+   ```
+
+   コピー元は、動作確認済みの環境の `HF_HOME` と `TORCH_HUB_DIR` です (ローカルのパスでも、`ホスト:パス` でもよい)。コピー先は、手順 4 の値です (`--to-hf` と `--to-hub` で変えられます)。必要なのは `tar` と `sha256sum` (コピー元が別のマシンなら `ssh` も) だけで、`rsync` は要りません。コピーしたあと、`server/weights/*.sha256` で照合し、一致しなければ失敗で終わります。すでに正しいものがあれば、その組は飛ばします。`--dry-run` でコピーするものだけを確かめられ、`--verify-only` で照合だけできます。コピーするのは、次の 2 組だけです:
+   - x-vector: `<HF_HOME>/hub/models--speechbrain--spkrec-xvect-voxceleb/`
+   - UTMOS: `<TORCH_HUB_DIR>/tarepan_SpeechMOS_v1.2.0/` と `<TORCH_HUB_DIR>/checkpoints/utmos22_strong_step7459_v1.pt`
+6. **点検**: `scripts/check_env.sh --smoke`。足りないものが一覧になります。NG が 0 になるまで直します (`--smoke` は、合成した音声で、生成を 1 回、実際に通します)
+7. **常駐**: systemd が使える環境では、`deploy/voice-demo.service` の雛形の `User` とパスを書き換えて、`/etc/systemd/system/` に置き、`systemctl enable --now voice-demo` します。使えない環境 (コンテナなど) では、`scripts/start.sh 8000` を使います (再起動のたびに、起動し直す必要があります)。サーバは、既定で `127.0.0.1` だけで待ち受けます
+8. **HTTPS で公開**: 次のどちらかを使います。
+   - **Cloudflare Tunnel** (`cloudflared`): サーバから外向きに接続するだけで、ポートを開けずに、HTTPS で公開できます。
+     - 試す (アカウント不要): `scripts/tunnel.sh quick 8000` で、一時的な URL (`https://....trycloudflare.com`) が出ます。URL を知っている人は、誰でも、この処理 (GPU) を使えます。確認が終わったら、Ctrl-C で閉じてください
+     - 本番 (名前つき): Cloudflare に登録したドメインが要ります。`deploy/cloudflared-config.example.yml` の手順で、トンネルを作り、`scripts/tunnel.sh run <トンネル名>` で起動します
+     - `cloudflared` は、環境変数 `CLOUDFLARED`、`server/work/bin/cloudflared`、`PATH` の順に探します (公式の配布: https://github.com/cloudflare/cloudflared/releases)
+   - **nginx** (研究室に、すでに HTTPS の入口がある場合): `deploy/nginx.example.conf` を `/etc/nginx/conf.d/` に置いて、`server_name`、証明書、中継先のポートを書き換えます。**接続元の IP を上書きする `proxy_set_header` は、必須です。** サーバは、`127.0.0.1` から来た接続の `CF-Connecting-IP` (なければ `X-Forwarded-For` の先頭) を、利用者の接続元として信用します (同じ接続元からの同時の処理を 1 件に絞るため)。nginx から中継する接続も `127.0.0.1` から来るので、利用者が自分で付けたヘッダが通ると、接続元を偽って、この制限を避けられます。雛形は、この 2 つのヘッダを、`$remote_addr` で上書きしています。サーバを `127.0.0.1` 以外で待ち受けさせる場合も、必ず前段を通してください
+
+### 公開の前に確認すること
+
+- **プライバシーの文面**: 録音がサーバに届くので、研究室の規定 (同意の取り方、保存、ログ) に合わせて、フッターの「プライバシー」の文面を確認してください。サーバのログ (`server/work/serve.log`) には、ジョブの ID、反復回数、所要時間だけが残り、録音と接続元の IP アドレスは書きません。nginx を使う場合、nginx のログは、既定で、IP アドレスを記録します
+- **アクセスの制限**: 認証はありません。公開 URL を知っている人は、誰でも、GPU を使えます。制限は、接続元ごとに同時 1 件と、順番待ち 5 件までだけです。必要なら、Cloudflare Access や nginx の認証で絞ってください
+- **GPU の共有**: 他の研究のジョブと GPU を共有する場合、このサーバの 1 件 (約 16 秒) が、待たされることがあります
+- **未確認のこと**: 研究室のサーバでの動作 (GPU の世代、ドライバ、ネットワーク)、複数人の同時利用、新しい環境への `pip install` の実行 (依存関係の解決だけを確かめた)、nginx の設定の構文 (確かめた環境に nginx がなかった)
+
 
 ## 素材について
 
-`site/models/xvector_grad.onnx` と `site/assets/constants.json` は、研究用のコードから生成したものです。生成用のコードはこのリポジトリに含みません。
+`server/data/pool.npz` (ターゲット候補の x-vector) は、`scripts/build_pool.sh` で作り直せます。`server/data/tts.json` は、モデルの語彙と、日本語の記号表です (学習時のものと同じでなければならないので、変更しないでください)。
 
 攻撃の設定 (学習率、損失の重みなど) は、`server/core.py` の `ATTACK` にあります。Beta の β だけは、Beta 探索の採用値である 1.0 に揃えています (研究の設定ファイルは 0.5)。
 
 ## 制限
 
 - 英語のモデル (SpeechT5) は英語専用です。録音は他の言語でも構いません。読み上げる言語は、入力した文章から決めます (日本語の文字が 1 字でもあれば日本語)。日本語のモデルが無い環境では、日本語は入力できても、読み上げられません
-- 初回に、英語で約 189 MiB、日本語で約 410 MiB (モデル約 308 MiB と辞書約 102 MiB) を取得します。日本語は、ブラウザのメモリも多く使います (開発環境の実測で 1.2〜1.5 GB 程度)。PC のブラウザを推奨します
+- 音声合成もサーバで行うので、ブラウザは、モデルを取得せず、メモリも多く使いません。その代わり、混み合うと Step 3 も順番待ちになり、入力した文章がサーバへ届きます (プライバシーの文面に記載)
 - 日本語のモデルは、JVS の声に近い x-vector で、短い文を、同じ文の繰り返しにしてしまうことがあります。終わりの検出で止めていますが、注意が崩れて末尾に届かない場合には効きません。長い文では、途中の語句の抜けや繰り返しが起きやすいため、ポーズの位置で区間に分けて合成しています (上の「日本語のクローン」)。ポーズのない長い数字の列 (16 桁など) は、分けられないので、読み誤ることがあります
 - SpeechT5 は推論時も dropout が有効なので、同じ入力でも合成結果と類似度は毎回変わります
-- 敵対的音声の生成は、サーバで 1 件ずつ処理するため、混み合うと順番待ちになります。サーバに GPU と、研究のリポジトリ、重みが要ります
+- 日本語の話者 (JVS) の x-vector で英語を読ませると、まれに (評価した 96 組のうち 2 件) 文を繰り返します。英語には、日本語のような、文の終わりの検出がありません
+- 敵対的音声の生成と、クローンの合成は、それぞれ、サーバで 1 件ずつ処理するため、混み合うと順番待ちになります。サーバに GPU と、研究のリポジトリ、重みが要ります
 - 効果はホワイトボックス条件のものです。他の音声合成モデルへの保護効果は示していません
 - 日本語のクローンでの保護効果は、系統立てた評価をしていません (評価したのは、日本語モデルの合成品質です)
 - 日本語の折り返しは、`word-break: auto-phrase` で、文節の途中で切らないようにしています。この指定は、Chrome と Edge の 119 以降で効きます。効かないブラウザ (Safari の安定版、Firefox など) では、`site/js/site/linebreak.js` が、BudouX で文を文節に分けて `<wbr>` を入れ、同じ見え方にします (Chrome では、何もしません)。Safari 実機での確認は、未実施です
@@ -246,9 +292,9 @@ Step 2 は Python と GPU が要るので、静的な配信だけ (Cloudflare Pa
 ## クレジット
 
 - 話者エンコーダ: [SpeechBrain spkrec-xvect-voxceleb](https://huggingface.co/speechbrain/spkrec-xvect-voxceleb) (Apache-2.0)
-- 音声合成: [Microsoft SpeechT5](https://huggingface.co/microsoft/speecht5_tts) / [HiFi-GAN](https://huggingface.co/microsoft/speecht5_hifigan) (MIT)、ONNX 変換は [Xenova/speecht5_tts](https://huggingface.co/Xenova/speecht5_tts)
-- ターゲット話者の埋め込みと参照音声: LibriTTS (CC BY 4.0)。参照音声は話者 1066（女性）と 7553（男性）の発話を 16 kHz モノラルに変換し、音量を調整したもの
-- 日本語の音素化: [Open JTalk](https://open-jtalk.sourceforge.net/) と NAIST Japanese Dictionary (いずれも修正 BSD)。WebAssembly に変換して使用。ライセンスは `vendor/openjtalk/` に同梱
+- 音声合成: [Microsoft SpeechT5](https://huggingface.co/microsoft/speecht5_tts) / [HiFi-GAN](https://huggingface.co/microsoft/speecht5_hifigan) (MIT)。日本語は、SpeechT5 を追加学習したモデル
+- ターゲット話者の埋め込みと参照音声: LibriTTS (CC BY 4.0)。参照音声は、候補 24 人の発話を 16 kHz モノラルに変換し、音量を調整したもの
+- 日本語の音素化: [Open JTalk](https://open-jtalk.sourceforge.net/) と NAIST Japanese Dictionary (いずれも修正 BSD)。[pyopenjtalk-plus](https://pypi.org/project/pyopenjtalk-plus/) 経由で、サーバが使用
 - 日本語モデルの学習データ: [JVS コーパス](https://arxiv.org/abs/1908.06248) と [JSUT コーパス](https://arxiv.org/abs/1711.00354) (東京大学)、LibriTTS の一部 (CC BY 4.0)。**JVS と JSUT の音声の利用は、学術機関の研究、非営利の研究 (企業内を含む)、個人利用に限られ、再配布は認められていません。** このデモの日本語モデルは、その条件に従い、非営利の研究・個人利用に限って使ってください
 - 音質の評価: [UTMOS](https://github.com/tarepan/SpeechMOS) (SpeechMOS、MIT)
-- [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) (MIT)、[Inter](https://github.com/rsms/inter) (OFL-1.1)、[Lucide](https://lucide.dev/) (ISC)、[BudouX](https://github.com/google/budoux) 0.10.1 (Apache-2.0。Safari など、`word-break: auto-phrase` が使えないブラウザで、日本語を文節の途中で折り返さないために使う。`site/vendor/budoux/` に、ライセンスとともに同梱)
+- [ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT)、[Inter](https://github.com/rsms/inter) (OFL-1.1)、[Lucide](https://lucide.dev/) (ISC)、[BudouX](https://github.com/google/budoux) 0.10.1 (Apache-2.0。Safari など、`word-break: auto-phrase` が使えないブラウザで、日本語を文節の途中で折り返さないために使う。`site/vendor/budoux/` に、ライセンスとともに同梱)
