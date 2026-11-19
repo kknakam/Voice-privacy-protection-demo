@@ -44,7 +44,7 @@
       <div class="container">
         <!-- BEGIN demo-content (自動生成。content/demo.mdx を編集して、npm run build を実行する。ここは手で直さない) -->
         <h2>3つのステップで試す</h2>
-<p class="section-lead">PC のブラウザを推奨します。Step 2 の敵対的音声の生成は、研究室のサーバで行います。Step 3 の音声合成は、お使いの端末で行うため、端末の性能によって時間が変わります。</p>
+<p class="section-lead">PC のブラウザを推奨します。Step 2 の敵対的音声の生成と、Step 3 の音声合成は、どちらも研究室のサーバで行います。混み合うと、順番待ちになります。</p>
 <p class="notice" id="env-notice" hidden></p>
 
         <article class="step" id="step-record">
@@ -134,7 +134,7 @@
           <div class="actions">
             <button class="btn btn-primary" id="clone-start" type="button" disabled><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"></use></svg>クローンを生成</button><button class="btn btn-secondary" id="clone-cancel" type="button" hidden><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#x"></use></svg>中止</button>
           </div>
-          <p class="hint"><svg class="icon icon-inline" aria-hidden="true"><use href="assets/icons.svg#cloud-download"></use></svg>初回のみ音声合成モデル（約 189 MiB）を Hugging Face から取得し、次回からはブラウザに保存した分を使います。取得するのはモデルだけで、音声や文章は送信しません。</p>
+          <p class="hint"><svg class="icon icon-inline" aria-hidden="true"><use href="assets/icons.svg#info"></use></svg>入力した文章と、Step 2 で得た話者の特徴（数値）を、サーバへ送って合成します。文章は、処理が終わるとすぐに削除し、保存しません。</p>
           <div class="progress" id="clone-progress" hidden>
             <div class="progress-track">
               <div class="progress-fill" id="clone-bar">
@@ -437,17 +437,17 @@
         <h2 class="footer-title">使用しているモデルとライブラリ</h2>
         <ul class="footer-list">
           <li>話者エンコーダ: SpeechBrain spkrec-xvect-voxceleb（Apache-2.0）</li>
-          <li>音声合成: Microsoft SpeechT5 / HiFi-GAN（MIT）、ONNX 変換は Xenova/speecht5_tts</li>
-          <li>日本語の音素化: Open JTalk と NAIST Japanese Dictionary（いずれも修正 BSD）を WebAssembly に変換して使用</li>
+          <li>音声合成: Microsoft SpeechT5 / HiFi-GAN（MIT）。日本語は、SpeechT5 を追加学習したモデル</li>
+          <li>日本語の音素化: Open JTalk と NAIST Japanese Dictionary（いずれも修正 BSD。pyopenjtalk-plus 経由でサーバが使用）</li>
           <li>日本語モデルの学習データ: JVS コーパス・JSUT コーパス（東京大学。音声の利用は学術・非営利の研究と個人利用に限られます）、LibriTTS（CC BY 4.0）</li>
           <li>音質の評価: UTMOS（SpeechMOS、MIT）</li>
           <li>ターゲット話者の埋め込みと参照音声: LibriTTS（CC BY 4.0）。参照音声は発話を 16 kHz モノラルに変換し、音量を調整したもの</li>
-          <li>ONNX Runtime Web（MIT）、Inter（OFL-1.1）、Lucide（ISC）、BudouX（Apache-2.0。Safari などでの日本語の折り返しに使用）</li>
+          <li>ONNX Runtime（MIT）、Inter（OFL-1.1）、Lucide（ISC）、BudouX（Apache-2.0。Safari などでの日本語の折り返しに使用）</li>
         </ul>
       </div>
       <div>
         <h2 class="footer-title">プライバシー</h2>
-        <p>Step 2 では、録音した音声を、研究室のサーバへ送信して処理します。サーバは、処理が終わるとすぐに音声を削除し、保存しません。研究以外の目的には使わず、第三者へ提供しません。接続の記録（IP アドレスなど）は、サーバの運用上、残る場合があります。Step 3 で入力した文章は、お使いのブラウザの中でのみ処理し、サーバへは送信しません。録音できるのは、ご本人の声に限ります。ページを閉じると、録音と結果は消えます。ブラウザに保存するのは音声合成モデルだけです。</p>
+        <p>Step 2 では、録音した音声を、研究室のサーバへ送信して処理します。Step 3 では、入力した文章と、Step 2 で得た話者の特徴（数値）を、サーバへ送信して音声を合成します。サーバは、処理が終わるとすぐに、録音と文章を削除し、保存しません（サーバの記録には、文章の長さと処理時間だけが残り、文章そのものは残りません）。研究以外の目的には使わず、第三者へ提供しません。接続の記録（IP アドレスなど）は、サーバの運用上、残る場合があります。録音できるのは、ご本人の声に限ります。ページを閉じると、録音と結果は消えます。</p>
       </div>
     </div>
     <div class="container footer-credit">

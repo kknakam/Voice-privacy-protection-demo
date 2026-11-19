@@ -8,7 +8,7 @@
 
 <Title>3つのステップで試す</Title>
 
-<Lead>PC のブラウザを推奨します。Step 2 の敵対的音声の生成は、研究室のサーバで行います。Step 3 の音声合成は、お使いの端末で行うため、端末の性能によって時間が変わります。</Lead>
+<Lead>PC のブラウザを推奨します。Step 2 の敵対的音声の生成と、Step 3 の音声合成は、どちらも研究室のサーバで行います。混み合うと、順番待ちになります。</Lead>
 
 <EnvNotice />
 
@@ -81,7 +81,7 @@
   <Button id="clone-cancel" icon="x" secondary hidden>中止</Button>
 </Actions>
 
-<Hint icon="cloud-download">初回のみ音声合成モデル（約 189 MiB）を Hugging Face から取得し、次回からはブラウザに保存した分を使います。取得するのはモデルだけで、音声や文章は送信しません。</Hint>
+<Hint icon="info">入力した文章と、Step 2 で得た話者の特徴（数値）を、サーバへ送って合成します。文章は、処理が終わるとすぐに削除し、保存しません。</Hint>
 
 <Progress id="clone" />
 

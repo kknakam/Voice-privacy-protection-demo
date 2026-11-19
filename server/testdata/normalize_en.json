@@ -1,0 +1,269 @@
+{
+"_comment": "ブラウザの tts.js の normalizeText (削除前の実装) の実行結果。server/tts.py の normalize_en が一致することを確かめる",
+"cases": [
+{
+"input": "Hello world",
+"text": "Hello world."
+},
+{
+"input": "hello world.",
+"text": "hello world."
+},
+{
+"input": "  spaces   everywhere  ",
+"text": "spaces everywhere."
+},
+{
+"input": "I have 12 apples and 3 oranges.",
+"text": "I have twelve apples and three oranges."
+},
+{
+"input": "The 1st, 2nd, 3rd, 4th, 11th, 12th, 21st, 100th, 101st place.",
+"text": "The first, second, third, fourth, eleventh, twelfth, twenty-first, one hundredth, one hundred first place."
+},
+{
+"input": "It costs $5.",
+"text": "It costs five dollars."
+},
+{
+"input": "It costs $ 1,234.56 today",
+"text": "It costs one thousand two hundred thirty-four point five six dollars today."
+},
+{
+"input": "50% of 100% is 50%.",
+"text": "fifty percent of one hundred percent is fifty percent."
+},
+{
+"input": "Call 555-1234 now!",
+"text": "Call five hundred fifty-five-one thousand two hundred thirty-four now!"
+},
+{
+"input": "1,000,000 people",
+"text": "one million people."
+},
+{
+"input": "1234567890123456789 is huge",
+"text": "one two three four five six seven eight nine zero one two three four five six seven eight nine is huge."
+},
+{
+"input": "007 is a spy",
+"text": "seven is a spy."
+},
+{
+"input": "3.14159 is pi",
+"text": "three point one four one five nine is pi."
+},
+{
+"input": "0.5 and .5",
+"text": "zero point five and .five."
+},
+{
+"input": "Rock & roll + more = fun @ home",
+"text": "Rock and roll plus more equals fun at home."
+},
+{
+"input": "Café au lait, naïve façade, Zoë",
+"text": "Cafe au lait, naive facade, Zoe."
+},
+{
+"input": "“Smart quotes” and ‘single’ — plus – dash − minus…",
+"text": "\"Smart quotes\" and 'single' — plus - dash - minus..."
+},
+{
+"input": "It’s fine",
+"text": "It's fine."
+},
+{
+"input": "ʼquoteʼ",
+"error": "SpeechT5 は英語専用のため、英語で入力してください（使用できない文字: ʼ）。"
+},
+{
+"input": "Don't stop",
+"text": "Don't stop."
+},
+{
+"input": "ＦＵＬＬ ＷＩＤＴＨ １２３",
+"text": "FULL WIDTH one hundred twenty-three."
+},
+{
+"input": "1st",
+"text": "first."
+},
+{
+"input": "twenty-one",
+"text": "twenty-one."
+},
+{
+"input": "twenty 21 twenty-first 21st",
+"text": "twenty twenty-one twenty-first twenty-first."
+},
+{
+"input": "Hello (world) [x] {y} /slash/ : ; ? !",
+"text": "Hello (world) [x] {y} /slash/ : ; ? !"
+},
+{
+"input": "What?",
+"text": "What?"
+},
+{
+"input": "Wow!!!",
+"text": "Wow!!!"
+},
+{
+"input": "...",
+"error": "読み上げられる英単語が含まれていません。"
+},
+{
+"input": "!!!",
+"error": "読み上げられる英単語が含まれていません。"
+},
+{
+"input": "123",
+"text": "one hundred twenty-three."
+},
+{
+"input": "",
+"error": "文章を入力してください。"
+},
+{
+"input": "   ",
+"error": "文章を入力してください。"
+},
+{
+"input": "日本語",
+"error": "SpeechT5 は英語専用のため、英語で入力してください（使用できない文字: 日）。"
+},
+{
+"input": "Hello 世界",
+"error": "SpeechT5 は英語専用のため、英語で入力してください（使用できない文字: 世）。"
+},
+{
+"input": "Привет мир",
+"error": "SpeechT5 は英語専用のため、英語で入力してください（使用できない文字: П）。"
+},
+{
+"input": "Ελληνικά",
+"error": "SpeechT5 は英語専用のため、英語で入力してください（使用できない文字: Ε）。"
+},
+{
+"input": "αβγ",
+"error": "SpeechT5 は英語専用のため、英語で入力してください（使用できない文字: α）。"
+},
+{
+"input": "emoji 😀 test",
+"text": "emoji test."
+},
+{
+"input": "tab\tand\nnewline",
+"text": "tab and newline."
+},
+{
+"input": "UPPER lower MiXeD",
+"text": "UPPER lower MiXeD."
+},
+{
+"input": "The year 2026.",
+"text": "The year two thousand twenty-six."
+},
+{
+"input": "He said \"hi\".",
+"text": "He said \"hi\"."
+},
+{
+"input": "100,000 and 1,5",
+"text": "one hundred thousand and fifteen."
+},
+{
+"input": "5th Avenue",
+"text": "fifth Avenue."
+},
+{
+"input": "No digits here",
+"text": "No digits here."
+},
+{
+"input": "Version 2.0.1",
+"text": "Version two point zero.one."
+},
+{
+"input": "I am 5'10\"",
+"text": "I am five'ten\"."
+},
+{
+"input": "10:30 AM",
+"text": "ten:thirty AM."
+},
+{
+"input": "a1b2c3",
+"text": "aonebtwocthree."
+},
+{
+"input": "Mr. Smith's 2nd car",
+"text": "Mr. Smith's second car."
+},
+{
+"input": "Quoted “text” 3rd",
+"text": "Quoted \"text\" third."
+},
+{
+"input": "ABC123DEF",
+"text": "ABCone hundred twenty-threeDEF."
+},
+{
+"input": "$100",
+"text": "one hundred dollars."
+},
+{
+"input": "$.50",
+"text": ".fifty."
+},
+{
+"input": "99.99%",
+"text": "ninety-nine point nine nine percent."
+},
+{
+"input": "1 2 3 4 5",
+"text": "one two three four five."
+},
+{
+"input": "To be, or not to be: that is the question.",
+"text": "To be, or not to be: that is the question."
+},
+{
+"input": "ÀÉÎÕÜ",
+"text": "AEIOU."
+},
+{
+"input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+"text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa."
+},
+{
+"input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+"error": "200 文字以内で入力してください。"
+},
+{
+"input": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word ",
+"text": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word."
+},
+{
+"input": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+"error": "200 文字以内で入力してください。"
+},
+{
+"input": "ª º",
+"text": "a o."
+},
+{
+"input": "ﬁnal ﬂow",
+"text": "final flow."
+},
+{
+"input": "x²",
+"text": "xtwo."
+},
+{
+"input": "①②③",
+"text": "one hundred twenty-three."
+}
+]
+}

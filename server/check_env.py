@@ -1,7 +1,7 @@
 """サーバを動かす環境の点検 (scripts/check_env.sh から呼ぶ)。必要なものを一覧にして、足りないものを知らせる。
 
   scripts/check_env.sh [--smoke] [--port 8000]
-    --smoke  合成した音声で、実際に、生成を 1 回 (反復 50 回) 通す
+    --smoke  合成した音声で、敵対的音声の生成を 1 回 (反復 50 回)、続けて、クローンの合成 (日本語と英語) を 1 回ずつ、実際に通す
 終了コードは、足りないもの (NG) があれば 1。
 """
 from __future__ import annotations
@@ -29,7 +29,9 @@ def add(name: str, status: str, detail: str = "") -> None:
 
 
 def check_python() -> None:
-    for mod in ("numpy", "scipy", "soundfile", "torch", "torchaudio", "speechbrain"):
+    from server import tts
+    tts.add_extra_paths()
+    for mod in ("numpy", "scipy", "soundfile", "torch", "torchaudio", "speechbrain", "transformers", "onnxruntime", "pyopenjtalk"):
         try:
             m = importlib.import_module(mod)
             add(f"Python: {mod}", "OK", getattr(m, "__version__", ""))
@@ -69,6 +71,9 @@ def check_weights() -> None:
     ckpt = Path(hub) / "checkpoints" / "utmos22_strong_step7459_v1.pt"
     add("重み: UTMOS (コード)", "OK" if code.is_file() else "NG", str(code) if code.is_file() else "TORCH_HUB_DIR の下の tarepan_SpeechMOS_v1.2.0/ に置く")
     add("重み: UTMOS (checkpoint)", "OK" if ckpt.is_file() else "NG", str(ckpt) if ckpt.is_file() else "TORCH_HUB_DIR の下の checkpoints/ に置く")
+    for label, repo, need in (("英語の音声合成 (SpeechT5)", "models--microsoft--speecht5_tts", "pytorch_model.bin"), ("英語のボコーダ (HiFi-GAN)", "models--microsoft--speecht5_hifigan", "pytorch_model.bin")):
+        hit = glob.glob(os.path.join(hf, "hub", repo, "snapshots", "*", need)) + glob.glob(os.path.join(hf, "hub", repo, "snapshots", "*", "model.safetensors")) if hf else []
+        add(f"重み: {label}", "OK" if hit else "NG", hit[0] if hit else f"HF_HOME の下の hub/{repo}/ に置く (scripts/copy_weights.sh)")
     add("オフライン実行", "OK" if os.environ.get("HF_HUB_OFFLINE") == "1" else "注意", "HF_HUB_OFFLINE=1 (実行時にネットへ取りに行かない)")
 
 
@@ -83,13 +88,14 @@ def check_site() -> None:
         add("ターゲット話者の候補群", "OK" if ok else "NG", f"{len(ids)} 人、参照音声と{'一致' if ok else '食い違い'}")
     else:
         add("ターゲット話者の候補群", "NG", "server/data/pool.npz がありません (scripts/build_pool.sh)")
-    add("サイト: x-vector の ONNX", "OK" if (REPO / "site/models/xvector_grad.onnx").is_file() else "NG", "site/models/xvector_grad.onnx")
-    manifest = REPO / "site/models_ja/manifest.json"
+    ja_dir = Path(os.environ.get("TTS_JA_DIR", REPO / "server" / "models_ja"))
+    manifest = ja_dir / "manifest.json"
     if manifest.is_file():
         files = json.loads(manifest.read_text(encoding="utf-8")).get("files", [])
-        add("サイト: 日本語のモデル", "OK", f"manifest にあるファイル {len(files)} 件")
+        missing = [p for f in files for p in f["parts"] if not (ja_dir / p).is_file()]
+        add("日本語の音声合成のモデル", "NG" if missing else "OK", f"{len(files)} ファイル、分割ファイルの欠け {len(missing)} 件 ({ja_dir})")
     else:
-        add("サイト: 日本語のモデル", "注意", "site/models_ja/manifest.json がありません (日本語の読み上げは、使えません)")
+        add("日本語の音声合成のモデル", "注意", f"{manifest} がありません (日本語の読み上げは、使えません)")
     for name in ("index.html", "_headers"):
         add(f"サイト: {name}", "OK" if (REPO / "site" / name).is_file() else "NG")
 
@@ -127,6 +133,27 @@ def smoke() -> None:
             add("通しの生成 (50 反復)", "NG", tail[0][:100])
 
 
+def smoke_tts() -> None:
+    """音声合成を、実際に通す: モデルを読み込み、日本語と英語を 1 文ずつ合成する (試験データの x-vector を使う)"""
+    import time
+    from server import tts
+    emb = json.loads((REPO / "server" / "testdata" / "emb_fixture.json").read_text(encoding="utf-8"))
+    t0 = time.time()
+    svc = tts.Service(log=lambda m: None)
+    svc.start()
+    svc.ready.wait()
+    add("音声合成の読み込み", "OK" if (svc.en and svc.ja) else "NG", f"{time.time() - t0:.0f} 秒、英語 {'可' if svc.en else '不可'}、日本語 {'可' if svc.ja else '不可'}" + (f" ({svc.errors})" if svc.errors else ""))
+    for lang, text in (("ja", "今日は、いい天気です。"), ("en", "My voice belongs to me.")):
+        if not getattr(svc, lang):
+            continue
+        try:
+            t = time.time()
+            r = svc.synthesize(text, emb, lambda *a: None, lambda: False)
+            add(f"通しの合成 ({'日本語' if lang == 'ja' else '英語'})", "OK", f"{time.time() - t:.1f} 秒、保護なし 本人 {r['clean']['cosSrc']:.3f}、保護あり ターゲット {r['protected']['cosTgt']:.3f}")
+        except Exception as e:  # noqa: BLE001
+            add(f"通しの合成 ({'日本語' if lang == 'ja' else '英語'})", "NG", f"{type(e).__name__}: {e}"[:100])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--smoke", action="store_true")
@@ -139,6 +166,7 @@ def main() -> int:
     check_machine(args.port)
     if args.smoke:
         smoke()
+        smoke_tts()
     width = max(len(n) for n, _, _ in rows)
     for name, status, detail in rows:
         print(f"[{status}] {name.ljust(width)}  {detail}")
