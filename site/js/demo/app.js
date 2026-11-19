@@ -1,27 +1,29 @@
 import { Engine } from "./engine.js";
-import { MicError, MicRecorder, micAvailable, prepareRecording, wavUrl } from "./recorder.js";
+import { MicError, MicRecorder, micAvailable, prepareRecording, wavBlob, wavUrl } from "./recorder.js";
+import * as api from "./api.js";
 import { attachHeatTooltip, drawHeatmap, drawWaveform } from "./charts.js";
 import { MAX_INPUT_CHARS } from "../tts/tts.js";
 
+// 録音には、安全な接続 (HTTPS か localhost) と、AudioWorklet が要る。どちらかが無いと、録音の開始は押せない
+const MIC_OK = micAvailable();
 const SAMPLE_RATE = 16000;
 const HOP = 256;
 const MAX_SEC = 8;
 const RECORD_LIMIT_SEC = 12;
-const TARGET_NAMES = { female: "女性話者", male: "男性話者" };
 
 const $ = (id) => document.getElementById(id);
 const fmt = (v) => v.toFixed(3);
 const engine = new Engine();
 
-const state = { wave: null, attack: null, urls: new Map(), busy: false, lang: "en", ja: null };
+const state = { wave: null, attack: null, urls: new Map(), busy: false, ja: null, api: false, job: null, cancelRequested: false };
 
-const EN_HINT = "SpeechT5 は英語専用です。数字は英単語に展開して読み上げます。";
-const JA_HINT_PRESET = "追加学習した日本語モデルで読み上げます。現在は、定型文から選んだ文だけを読み上げられます。";
-const JA_HINT_FREE = "追加学習した日本語モデルで読み上げます。自由に入力できます。定型文以外は、初回に音素化の辞書も読み込みます。";
-let JA_HINT = JA_HINT_PRESET;
+// 読み上げる言語は、入力した文章から決める。ひらがな・カタカナ・漢字が 1 字でもあれば日本語、なければ英語
+const JAPANESE = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff66-\uff9f]/;
+const detectLang = (text) => (JAPANESE.test(text) ? "ja" : "en");
+const EN_HINT = "英語で読み上げます。数字は英単語に展開して読み上げます。";
+const JA_HINT = "日本語で読み上げます（追加学習したモデル）。初回は、日本語の音素化の辞書も読み込みます。";
+const JA_UNAVAILABLE = "この環境では、日本語の読み上げを用意していません。英語で入力してください。";
 const JA_MAX_CHARS = 60;
-const drafts = { en: null, ja: null };
-const EN_DEFAULT = "My voice belongs to me, and I never agreed to say these words.";
 
 function setUrl(audioId, samples) {
   const old = state.urls.get(audioId);
@@ -48,14 +50,11 @@ function showError(id, message) {
 function setBusy(busy) {
   state.busy = busy;
   $("tab-demo-busy").hidden = !busy;   // 別のタブを見ている間も、デモの処理中だと分かるようにする
-  $("record-start").disabled = busy;
-  $("attack-start").disabled = busy || !state.wave;
+  $("record-start").disabled = busy || !MIC_OK;
+  $("attack-start").disabled = busy || !state.wave || !state.api;
   $("clone-start").disabled = busy || !state.attack;
   $("clone-text").disabled = busy;
-  $("clone-preset").disabled = busy;
-  document.querySelectorAll('input[name="clone-lang"]').forEach((r) => (r.disabled = busy));
   document.querySelectorAll('input[name="steps"]').forEach((r) => (r.disabled = busy));
-  document.querySelectorAll('input[name="target"]').forEach((r) => (r.disabled = busy));
 }
 
 function unlock(stepId, open) {
@@ -65,11 +64,6 @@ function unlock(stepId, open) {
 function setProgress(barId, labelId, fraction, label) {
   $(barId).style.width = `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
   $(labelId).textContent = label;
-}
-
-function describeTime(sec) {
-  if (sec < 60) return `約 ${Math.max(1, Math.round(sec))} 秒`;
-  return `約 ${Math.round(sec / 60)} 分`;
 }
 
 // ---- Step 1: 録音 ----------------------------------------------------------
@@ -167,12 +161,17 @@ async function stopRecording() {
 
 // ---- Step 2: 敵対的音声 ----------------------------------------------------
 
-function stat(dl, label, value) {
+function stat(dl, label, value, note) {
   const box = document.createElement("div");
   const dt = document.createElement("dt");
   dt.textContent = label;
   const dd = document.createElement("dd");
   dd.textContent = value;
+  if (note) {
+    const small = document.createElement("small");
+    small.textContent = note;
+    dd.appendChild(small);
+  }
   box.append(dt, dd);
   dl.appendChild(box);
 }
@@ -185,9 +184,13 @@ function range(values, lowPct, highPct) {
 function renderAttackResult(r) {
   const dl = $("attack-stats");
   dl.replaceChildren();
-  stat(dl, "マスクの二値性", `${Math.round(r.stats.binarity * 100)}%`);
-  stat(dl, "SNR", `${r.snr.toFixed(1)} dB`);
+  const s = r.stats;
+  stat(dl, "残した情報の割合", `${(s.maskMean * 100).toFixed(1)}%`, "マスクの平均値。大きいほど、元の音声の情報を多く残している");
+  stat(dl, "SNR", `${s.snr.toFixed(1)} dB`, "大きいほど、元の音声からの変化が小さい");
+  stat(dl, "UTMOS", `${s.utmosAdv.toFixed(2)} / 5.0`, `録音は ${s.utmosClean.toFixed(2)} / 5.0。大きいほど、音質がよい`);
   setUrl("compare-adv", r.protected);
+  $("attack-target-name").textContent = `話者 ${r.target.id}`;
+  $("attack-target-audio").src = `assets/targets/${r.target.id}.wav`;
 
   // 2枚のスペクトログラムは同じ範囲で塗り、差が見えるようにする
   const [lo, hi] = range(r.clean.values, 0.05, 0.998);
@@ -203,34 +206,41 @@ function renderAttackResult(r) {
   $("attack-result").hidden = false;
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// 敵対的音声は、サーバで作る。録音を送り、順番待ちと進み具合を見て、結果を受け取る
 async function startAttack() {
   showError("attack-error");
   resetClone();
   unlock("step-clone", false);
   state.attack = null;
+  state.cancelRequested = false;
   $("attack-result").hidden = true;
   const steps = +document.querySelector('input[name="steps"]:checked').value;
-  const target = document.querySelector('input[name="target"]:checked').value;
   setBusy(true);
   $("attack-start").hidden = true;
   $("attack-cancel").hidden = false;
   $("attack-cancel").disabled = false;
   $("attack-progress").hidden = false;
-  setProgress("attack-bar", "attack-status", 0, "モデルを準備しています...");
+  setProgress("attack-bar", "attack-status", 0, "録音をサーバへ送っています...");
   try {
-    const wave = state.wave.slice();
-    const result = await engine.call("attack", { wave, steps, target }, (p) => {
-      const remain = ((p.steps - p.step) * p.msPerStep) / 1000;
-      setProgress("attack-bar", "attack-status", p.step / p.steps,
-        `ステップ ${p.step} / ${p.steps}（残り ${describeTime(remain)}）`);
-    });
-    if (!result) {
-      setProgress("attack-bar", "attack-status", 0, "中止しました。");
-      return;
+    state.job = await api.submit(wavBlob(state.wave), steps);
+    if (state.cancelRequested) api.cancel(state.job);
+    for (;;) {
+      await sleep(500);
+      const s = await api.status(state.job);
+      if (s.state === "queued") setProgress("attack-bar", "attack-status", 0, `順番待ちです（${s.position} 番目）`);
+      else if (s.state === "running") setProgress("attack-bar", "attack-status", s.step / s.steps, s.step ? `ステップ ${s.step} / ${s.steps}` : `${s.message || "準備しています"}...`);
+      else if (s.state === "cancelled") {
+        setProgress("attack-bar", "attack-status", 0, "中止しました。");
+        return;
+      } else if (s.state === "error") throw new Error(s.message);
+      else break;
     }
+    const result = api.decode(await api.result(state.job));
+    await engine.call("setSession", { eSrc: result.emb.src, eProtected: result.emb.adv, eTarget: result.emb.tgt });
     state.attack = result;
-    setProgress("attack-bar", "attack-status", 1,
-      `完了しました（${(result.msPerStep * steps / 1000).toFixed(0)} 秒、${result.msPerStep.toFixed(0)} ms/ステップ）。ターゲット: ${TARGET_NAMES[result.target.id]}`);
+    setProgress("attack-bar", "attack-status", 1, `完了しました（${result.seconds.toFixed(0)} 秒）。ターゲット: 話者 ${result.target.id}`);
     renderAttackResult(result);
     unlock("step-clone", true);
     updateCloneInput();
@@ -238,29 +248,43 @@ async function startAttack() {
     showError("attack-error", `生成に失敗しました: ${e.message}`);
     $("attack-progress").hidden = true;
   } finally {
+    state.job = null;
     $("attack-start").hidden = false;
     $("attack-cancel").hidden = true;
     setBusy(false);
   }
 }
 
+function cancelAttack() {
+  $("attack-cancel").disabled = true;
+  state.cancelRequested = true;
+  if (state.job) api.cancel(state.job);
+}
+
 // ---- Step 3: クローン ------------------------------------------------------
 
 let normalizeTimer = 0;
 
-const maxChars = () => (state.lang === "ja" ? JA_MAX_CHARS : MAX_INPUT_CHARS);
+const currentLang = () => detectLang($("clone-text").value);
+const maxChars = () => (currentLang() === "ja" ? JA_MAX_CHARS : MAX_INPUT_CHARS);
 
 function updateCloneInput() {
   const text = $("clone-text").value;
-  const lang = state.lang;
+  const lang = currentLang();
+  $("clone-text").lang = lang;
   const counter = $("clone-counter");
   counter.textContent = `${text.length} / ${maxChars()}`;
   counter.classList.toggle("is-over", text.length > maxChars());
   clearTimeout(normalizeTimer);
   normalizeTimer = setTimeout(async () => {
-    const r = await engine.call("normalize", { text, lang }).catch(() => null);
-    if (!r || $("clone-text").value !== text || state.lang !== lang) return;
     const hint = $("clone-normalized");
+    if (lang === "ja" && state.ja && !state.ja.usable) {
+      hint.textContent = JA_UNAVAILABLE;
+      if (!state.busy) $("clone-start").disabled = true;
+      return;
+    }
+    const r = await engine.call("normalize", { text, lang }).catch(() => null);
+    if (!r || $("clone-text").value !== text) return;
     if (r.error) hint.textContent = r.error;
     else if (r.text !== text.trim()) hint.textContent = `読み上げる文: ${r.text}`;
     else hint.textContent = lang === "ja" ? JA_HINT : EN_HINT;
@@ -308,7 +332,7 @@ async function startClone() {
   const names = { clean: "録音からのクローン", protected: "敵対的音声からのクローン" };
   const order = { clean: 0, protected: 1 };
   try {
-    const data = await engine.call("clone", { text: $("clone-text").value, lang: state.lang }, (p) => {
+    const data = await engine.call("clone", { text: $("clone-text").value, lang: currentLang() }, (p) => {
       if (p.kind === "load" && p.phase === "download") {
         const verb = p.fromCache ? "保存済みのデータを読み込んでいます" : `${p.what ?? "音声合成モデル"}を取得しています`;
         setProgress("clone-bar", "clone-status", p.loadedMiB / p.totalMiB,
@@ -367,41 +391,11 @@ function drawHeroArt() {
   }
 }
 
-// 日本語モデルが配信されているときだけ、言語の切り替えと定型文の選択を出す
+// 日本語モデルと、自由入力のための辞書がそろっているときだけ、日本語の入力を受け付ける
 async function setupJapanese() {
   const status = await engine.call("jaStatus").catch(() => null);
-  if (!status?.available) return;
-  state.ja = status;
-  JA_HINT = status.freeInput ? JA_HINT_FREE : JA_HINT_PRESET;
-  $("clone-preset").replaceChildren(
-    ...status.presets.map((text) => Object.assign(document.createElement("option"), { value: text, textContent: text })),
-  );
-  $("clone-lang-group").hidden = false;
-  document.querySelectorAll('input[name="clone-lang"]').forEach((r) =>
-    r.addEventListener("change", () => {
-      if (r.checked) setLang(r.value);
-    }),
-  );
-  $("clone-preset").addEventListener("change", () => {
-    $("clone-text").value = $("clone-preset").value;
-    updateCloneInput();
-  });
-}
-
-function setLang(lang) {
-  drafts[state.lang] = $("clone-text").value;
-  state.lang = lang;
-  const ja = lang === "ja";
-  const area = $("clone-text");
-  $("clone-text-label").textContent = ja ? "読み上げる文章（日本語）" : "読み上げる文章（英語）";
-  $("clone-preset-field").hidden = !ja;
-  area.lang = ja ? "ja" : "en";
-  area.maxLength = maxChars();
-  area.value = drafts[lang] ?? (ja ? state.ja.presets[0] : EN_DEFAULT);
-  if (ja) $("clone-preset").value = state.ja.presets.includes(area.value) ? area.value : state.ja.presets[0];
-  $("clone-normalized").textContent = ja ? JA_HINT : EN_HINT;
-  resetClone();
-  updateCloneInput();
+  state.ja = { usable: Boolean(status?.available && status.freeInput) };
+  if (!state.ja.usable && currentLang() === "ja") updateCloneInput();   // 先に日本語を入力していたときだけ、案内を出す
 }
 
 function init() {
@@ -409,21 +403,27 @@ function init() {
   $("clone-counter").textContent = `${$("clone-text").value.length} / ${MAX_INPUT_CHARS}`;
   setupJapanese();
   const notice = $("env-notice");
-  if (!micAvailable()) {
-    notice.textContent = "このブラウザまたは接続ではマイクを使用できません。HTTPS で開いた最新のブラウザをご利用ください。";
+  if (!MIC_OK) {
+    notice.textContent = window.isSecureContext
+      ? "このブラウザは、録音に必要な機能 (AudioWorklet) に対応していません。最新の Chrome や Safari をご利用ください。"
+      : `このページは、安全な接続ではないため、ブラウザがマイクの使用を止めています。https:// の URL か、http://localhost:ポート番号/ で開いてください（いまの URL: ${window.location.origin}）。`;
     notice.hidden = false;
     $("record-start").disabled = true;
   } else if (!window.crossOriginIsolated) {
     notice.textContent = "この配信環境ではマルチスレッドが使えないため、処理に時間がかかります。";
     notice.hidden = false;
   }
+  api.available().then((ok) => {
+    state.api = ok;
+    if (!ok) {
+      showError("attack-error", "この配信では、敵対的音声を作るサーバにつながっていないため、Step 2 を使えません。");
+    }
+    setBusy(state.busy);
+  });
   $("record-start").addEventListener("click", startRecording);
   $("record-stop").addEventListener("click", stopRecording);
   $("attack-start").addEventListener("click", startAttack);
-  $("attack-cancel").addEventListener("click", () => {
-    $("attack-cancel").disabled = true;
-    engine.cancel();
-  });
+  $("attack-cancel").addEventListener("click", cancelAttack);
   $("clone-start").addEventListener("click", startClone);
   $("clone-cancel").addEventListener("click", () => {
     $("clone-cancel").disabled = true;

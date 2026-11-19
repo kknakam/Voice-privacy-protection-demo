@@ -1,17 +1,25 @@
 {/*
-  「研究のシナリオ」の本文。編集したら、npm run build:scenario で site/index.html に反映する。
-  文章は Markdown、図は <Figure> <Flow> <Step> で書く。使えるコンポーネントは、tools/scenario/components.mjs を見る。
+  「研究のシナリオ」の本文。編集したら、npm run build:scenario で site/index.html に反映する (npm run check:scenario で、一致を確認)。
+  文章は Markdown で書く。図や、枠つきの文は、コンポーネントで書く。使える部品と、指定できる項目は、tools/scenario/components.mjs を見る。
   色 (color): purple = 本人、teal = 保護、orange = 攻撃者、gray = 中立。アイコン (icon) は、site/assets/icons.svg にある名前。
-  段階 1 では、節 1 (何が問題か) だけをこの形に移している。
+  イラストを使うときは、<Step image="ファイル名" alt="説明"> と書く (ファイルは site/assets/illust/ に置く。詳しくは README.md)。
+  図の番号は自動で振る。本文から「図 N」と参照するときは、<Figure id="..."> を付けて、<Ref to="..." /> と書く。
+  目次は、<Block toc="..."> を付けた節から、自動で作る。
 */}
 
-<Block id="scenario-problem" eyebrow="研究背景" title="何が問題なの？">
+<Title>研究のシナリオ</Title>
+
+<Lead>自分の声が、本人の知らないところで使われる。この研究が想定する場面と、それを防ぐ仕組みを、図で説明する。</Lead>
+
+<Toc label="研究のシナリオの内容" />
+
+<Block id="scenario-problem" eyebrow="研究背景" title="何が問題なの？" toc="何が問題か">
 
 音声クローニングは、短い音声から声をまねて、好きな文章を話させる技術。
 
 公開した声が入手されると、本人が話していない言葉を、本人の声で作られてしまう。
 
-<Figure caption="保護しない場合の流れ">
+<Figure id="problem-flow" caption="保護しない場合の流れ">
   <Flow>
     <Step role="本人" icon="globe" color="purple" title="声を公開する">動画や SNS など</Step>
     <Step role="攻撃者" icon="download" color="orange" title="音声を入手する">短い音声(2~3秒)で十分</Step>
@@ -21,5 +29,91 @@
 </Figure>
 
 <Summary>クローンの声を決めるのは、その人の「声の特徴の数値」である。音声から取り出される「数値」が本人のものでなければ、クローンも本人の声にならない。この研究は、この性質を利用する。</Summary>
+
+</Block>
+
+<Block id="scenario-defense" eyebrow="対策" title="どう守るか" toc="どう守るか">
+
+公開する前に、音声を少しだけ加工する。加工した音声を「敵対的音声」と呼ぶ。音の変化を小さく抑えつつ、取り出される数値を本人から遠ざけ、別の声（ターゲット話者）に近づける。
+
+<Figure id="defense-flow" caption="加工しない場合と、加工する場合の違い。下のボタンから、デモの対応する部分へ移れる">
+  <Branching label="公開する音声を加工しない場合と、加工する場合の流れ">
+    <Step role="本人" icon="mic" color="purple" title="本人の声" demo="デモ Step 1" href="#step-record">録音した自分の声</Step>
+    <Alts demo="デモ Step 2" href="#step-attack">
+      <Case name="加工しない" color="gray">そのまま公開する</Case>
+      <Case name="加工する" color="teal">
+        <Step role="保護" icon="shield-check" color="teal" title="公開前の加工">話者の特徴を、ターゲット話者の方へずらす</Step>
+      </Case>
+    </Alts>
+    <Step role="ネット上" icon="globe" color="gray" title="公開・入手">攻撃者が、公開された音声を入手する</Step>
+    <Step role="攻撃者" icon="binary" color="orange" title="声の特徴を数値にする">話者エンコーダが、声の特徴を数値にまとめる</Step>
+    <Alts demo="デモ Step 3" href="#step-clone">
+      <Case name="加工しない" color="gray">
+        <Step role="攻撃者" icon="audio-lines" color="orange" title="合成された声" result="ng" resultLabel="守れない">本人にそっくりの声</Step>
+      </Case>
+      <Case name="加工する" color="teal">
+        <Step role="攻撃者" icon="audio-lines" color="orange" title="合成された声" result="ok" resultLabel="守れる">本人とは別の人に近い声</Step>
+      </Case>
+    </Alts>
+  </Branching>
+</Figure>
+
+<Summary>保護しないと、クローンは本人の声になる。加工しておくと、同じ手順でも、クローンは本人の声から離れる。</Summary>
+
+<Hint>ターゲット話者は、クローンの声を近づける先の、別の人の声。デモでは、録音の話者から、いちばん遠い話者が、自動で選ばれる。</Hint>
+
+<Notice>この効果は、攻撃者の話者エンコーダが分かっている条件で確かめたものだ。</Notice>
+
+</Block>
+
+<Block id="scenario-method" eyebrow="仕組み" title="敵対的音声のつくり方" toc="つくり方">
+
+声に雑音を足すのではなく、時間と周波数のマス目ごとに、成分を残すか削るかを決める「マスク」を掛ける。雑音を足す従来の方法と比べて、元の音からの変化を小さく保ちやすい。
+
+<Figure id="mask-grid" caption="マスクを掛けると、削るマス目の成分だけが消える（縦軸は周波数、横軸は時間。模式図）">
+  <MaskDemo label="元の音声の成分にマスクを掛けると、削るマス目だけが消えた結果になることを示す模式図" />
+</Figure>
+
+では、どのマス目を削ればよいか。次の手順をくり返して、自動で探す。
+
+<Figure id="mask-loop" caption="マスクを最適化する手順">
+  <Flow loop="最初に戻って、くり返す">
+    <Step role="保護" icon="grid-3x3" color="teal" title="音声にマスクを掛ける">マス目ごとに、残す度合いを掛ける</Step>
+    <Step role="保護" icon="shield-check" color="teal" title="敵対的音声ができる">残った成分を、音声に戻す</Step>
+    <Step role="攻撃者の側を模す" icon="binary" color="orange" title="話者エンコーダに通す">声の特徴の数値を取り出す</Step>
+    <Step role="採点" icon="target" color="gray" title="採点する">本人から遠いか、ターゲットに近いか、音の変化が小さいかを見る</Step>
+    <Step role="更新" icon="rotate-ccw" color="teal" title="マスクを更新する">点数がよくなるよう、少し直す</Step>
+  </Flow>
+</Figure>
+
+</Block>
+
+<Block id="scenario-results" eyebrow="結果の見方" title="結果の読み方" toc="結果の読み方">
+
+加工した音声は、人間には本人の声に聞こえ、機械には、ターゲット話者の声として判定される。結果の数値は、この機械の判定を、声の特徴どうしの近さで表す。大きいほど、同じ声に近い。
+
+<Figure id="perception" caption="同じ敵対的音声を、人間と機械が受け取ったときの違い（模式図）">
+  <Perception desc="敵対的音声が、2 つに分かれる。人間が聞くと、本人の声に聞こえる。機械（話者エンコーダ）が判定すると、ターゲット話者に分類される。" source="敵対的音声" human="人間が聞く" machine="機械が判定する" humanResult={["本人の声に", "聞こえる"]} machineResult={["ターゲット話者", "に分類する"]} />
+</Figure>
+
+<Legend>
+  <Term name="本人との類似度">クローンが、本人の声にどれだけ近いか。保護で下がるほど、守れている。</Term>
+  <Term name="ターゲットとの類似度">クローンが、ターゲット話者の声にどれだけ近いか。保護で上がるほど、入れ替わっている。</Term>
+</Legend>
+
+</Block>
+
+<Block id="scenario-limits" eyebrow="注意点" title="条件と限界" toc="条件と限界">
+
+この研究が示すのは、限られた条件での結果だ。
+
+<Limits>
+  <Limit title="攻撃者のエンコーダが分かる条件">攻撃者が使う話者エンコーダが分かっている前提で、それに合わせて最適化する。別のエンコーダを使うクローンには、効果が下がることがある。複数を同時に狙うと効きは広がるが、音質は下がる。</Limit>
+  <Limit title="評価も同じエンコーダ">類似度は、加工に使ったのと同じエンコーダで測る。別の方法で測ると、結果は変わりうる。</Limit>
+  <Limit title="音の変化との兼ね合い">強く効かせるほど、元の音からの変化は大きくなりやすい。</Limit>
+  <Limit title="公開前の音声が対象">すでに公開した、加工していない音声は守れない。完全な防御ではなく、悪用を難しくする手段の 1 つだ。</Limit>
+  <Limit title="検証の範囲">確かめたのは、限られた条件だけだ。それ以外でも同じ効果が出るとは限らない。</Limit>
+  <Limit title="自分の声で試す">このデモは、自分の声を守る仕組みを試すためのもの。他人の声では試さない。</Limit>
+</Limits>
 
 </Block>

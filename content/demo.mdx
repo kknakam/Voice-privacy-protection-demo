@@ -1,0 +1,98 @@
+{/*
+  「デモ」のタブの本文。編集したら、npm run build で site/index.html に反映する (npm run check で、一致を確認)。
+  文章 (見出し、説明、ボタンの文字、補足) は、自由に書き換えられる。部品と、指定できる項目は、tools/scenario/demo-components.mjs を見る。
+  id (例: "record-start") は、site/js/demo/app.js が、部品を探す名前。変えると、動かなくなる (ビルドが、app.js が探す id が無いと知らせる)。
+  色 (color): purple = 本人、青緑 = 保護 (teal)、橙 = 攻撃者 (orange)、灰 = 中立 (gray)。アイコン (icon) は、site/assets/icons.svg にある名前。
+  JS が、あとから文を入れる場所 (例: <Alert>、<Stats>、<Slot>) は、最初は隠れている。
+*/}
+
+<Title>3つのステップで試す</Title>
+
+<Lead>PC のブラウザを推奨します。Step 2 の敵対的音声の生成は、研究室のサーバで行います。Step 3 の音声合成は、お使いの端末で行うため、端末の性能によって時間が変わります。</Lead>
+
+<EnvNotice />
+
+<DemoStep id="step-record" no="1" title="声を録音する" icon="mic" color="purple">
+
+好きな言葉で話してください。録音できる声はご本人のものに限ります。
+
+<Actions>
+  <Button id="record-start" icon="mic">録音を開始</Button>
+  <Button id="record-stop" icon="square" secondary hidden>録音を停止</Button>
+  <Timer id="record-timer">0.0 秒</Timer>
+</Actions>
+
+<Hint>5〜8 秒ほどが目安です。無音の部分は自動で取り除き、最長 8 秒を使います。</Hint>
+
+<Waveform id="record-wave" label="録音中の音声波形" />
+
+<Alert id="record-error" />
+
+<Result id="record-result">
+  <AudioRow id="record-audio">録音した音声</AudioRow>
+</Result>
+
+</DemoStep>
+
+<DemoStep id="step-attack" no="2" title="敵対的音声を生成する" icon="shield-check" color="teal" locked>
+
+録音からマスクを最適化し、話者の特徴を、ターゲット話者の方向へずらします。ターゲット話者は、録音の話者から、いちばん遠い話者が、候補の中から自動で選ばれます。最適化は、研究室のサーバで行うため、録音をサーバへ送ります。
+
+<Segmented id="steps-group" name="steps" legend="反復回数">
+  <Option value="50" note="速度優先">50</Option>
+  <Option value="100" note="標準" checked>100</Option>
+  <Option value="200" note="実験と同じ条件">200</Option>
+</Segmented>
+
+<Actions>
+  <Button id="attack-start" icon="shield-check" disabled>生成を開始</Button>
+  <Button id="attack-cancel" icon="x" secondary hidden>中止</Button>
+</Actions>
+
+<Progress id="attack" />
+
+<Alert id="attack-error" />
+
+<Result id="attack-result">
+  <Stats id="attack-stats" />
+  <AudioRow id="attack-target-audio" labelId="attack-target-label">ターゲット話者（録音の話者から、いちばん遠い話者）: <Slot tag="strong" id="attack-target-name" />　参照音声</AudioRow>
+  <AudioGrid>
+    <AudioRow id="compare-clean">録音した音声</AudioRow>
+    <AudioRow id="compare-adv">敵対的音声</AudioRow>
+  </AudioGrid>
+  <HeatGrid>
+    <Heat id="heat-clean" label="録音のスペクトログラム">録音のスペクトログラム</Heat>
+    <Heat id="heat-mask" label="マスクが削った時間周波数成分">マスクが削った成分</Heat>
+    <Heat id="heat-adv" label="敵対的音声のスペクトログラム">敵対的音声のスペクトログラム</Heat>
+  </HeatGrid>
+  <HeatScale low="弱い / 残す" high="強い / 削る">縦軸 0〜8 kHz、横軸は時間</HeatScale>
+</Result>
+
+</DemoStep>
+
+<DemoStep id="step-clone" no="3" title="好きな文章でクローンする" icon="audio-lines" color="orange" locked>
+
+入力した文章を、録音と敵対的音声それぞれの話者埋め込みで SpeechT5 に読み上げさせ、結果を比べます。日本語で入力すると日本語で、英語で入力すると英語で読み上げます。
+
+<TextField id="clone-text" label="読み上げる文章" maxlength={200} lang="en" value="My voice belongs to me, and I never agreed to say these words." counterId="clone-counter" counter="0 / 200" hintId="clone-normalized">英語で読み上げます。数字は英単語に展開して読み上げます。</TextField>
+
+<Actions>
+  <Button id="clone-start" icon="audio-lines" disabled>クローンを生成</Button>
+  <Button id="clone-cancel" icon="x" secondary hidden>中止</Button>
+</Actions>
+
+<Hint icon="cloud-download">初回のみ音声合成モデル（約 189 MiB）を Hugging Face から取得し、次回からはブラウザに保存した分を使います。取得するのはモデルだけで、音声や文章は送信しません。</Hint>
+
+<Progress id="clone" />
+
+<Alert id="clone-error" />
+
+<Result id="clone-result">
+  <CloneGrid>
+    <CloneCard name="clean" eyebrow="保護なし" title="録音からのクローン" audioLabel="録音からのクローン音声" />
+    <CloneCard name="protected" eyebrow="保護あり" title="敵対的音声からのクローン" audioLabel="敵対的音声からのクローン音声" />
+  </CloneGrid>
+  <Slot tag="p" class="summary" id="clone-summary" hidden />
+</Result>
+
+</DemoStep>

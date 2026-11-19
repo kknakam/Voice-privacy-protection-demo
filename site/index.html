@@ -7,6 +7,7 @@
   <meta name="description" content="時間周波数マスクで話者情報を選択的に削り、音声クローンから声を守る研究のデモ。録音から敵対的音声の生成、クローン比較までをブラウザ内で実行します。">
   <link rel="preload" href="vendor/inter/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/site/linebreak.js"></script>
   <script type="module" src="js/site/tabs.js"></script>
   <script type="module" src="js/site/scenario.js"></script>
   <script type="module" src="js/demo/app.js"></script>
@@ -32,7 +33,6 @@
             <a class="btn btn-primary" href="#demo">デモを始める</a>
           </div>
           <ul class="hero-facts">
-            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#lock"/></svg>音声はブラウザの外へ送信しません</li>
             <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#cpu"/></svg>x-vector + SpeechT5</li>
           </ul>
         </div>
@@ -42,186 +42,148 @@
 
     <section class="section tabpanel" id="demo" role="tabpanel" aria-labelledby="tab-demo">
       <div class="container">
+        <!-- BEGIN demo-content (自動生成。content/demo.mdx を編集して、npm run build を実行する。ここは手で直さない) -->
         <h2>3つのステップで試す</h2>
-        <p class="section-lead">PC のブラウザを推奨します。処理はすべてお使いの端末で実行するため、端末の性能によって時間が変わります。</p>
-        <p class="notice" id="env-notice" hidden></p>
+<p class="section-lead">PC のブラウザを推奨します。Step 2 の敵対的音声の生成は、研究室のサーバで行います。Step 3 の音声合成は、お使いの端末で行うため、端末の性能によって時間が変わります。</p>
+<p class="notice" id="env-notice" hidden></p>
 
         <article class="step" id="step-record">
           <header class="step-head">
-            <span class="sticker sticker-purple"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"/></svg></span>
+            <span class="sticker sticker-purple"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg></span>
             <div>
-              <span class="eyebrow">Step 1</span>
-              <h3>声を録音する</h3>
+              <span class="eyebrow">Step 1</span><h3>声を録音する</h3>
             </div>
           </header>
           <p>好きな言葉で話してください。録音できる声はご本人のものに限ります。</p>
           <div class="actions">
-            <button class="btn btn-primary" id="record-start" type="button"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"/></svg>録音を開始</button>
-            <button class="btn btn-secondary" id="record-stop" type="button" hidden><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#square"/></svg>録音を停止</button>
-            <span class="timer" id="record-timer" hidden aria-live="off">0.0 秒</span>
+            <button class="btn btn-primary" id="record-start" type="button"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg>録音を開始</button><button class="btn btn-secondary" id="record-stop" type="button" hidden><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#square"></use></svg>録音を停止</button><span class="timer" id="record-timer" hidden aria-live="off">0.0 秒</span>
           </div>
-          <p class="hint">5〜8 秒ほどが目安です。無音の部分は自動で取り除き、最長 8 秒を使います。</p>
-          <canvas class="waveform" id="record-wave" hidden aria-label="録音中の音声波形" role="img"></canvas>
-          <p class="error" id="record-error" role="alert" hidden></p>
+          <p class="hint">5〜8 秒ほどが目安です。無音の部分は自動で取り除き、最長 8 秒を使います。</p><canvas class="waveform" id="record-wave" hidden aria-label="録音中の音声波形" role="img"></canvas><p class="error" id="record-error" role="alert" hidden></p>
           <div class="result" id="record-result" hidden>
             <div class="audio-row">
-              <span class="audio-label" id="record-audio-label">録音した音声</span>
-              <audio id="record-audio" controls preload="metadata" aria-labelledby="record-audio-label"></audio>
+              <span class="audio-label" id="record-audio-label">録音した音声</span><audio id="record-audio" controls preload="metadata" aria-labelledby="record-audio-label"></audio>
             </div>
           </div>
         </article>
-
         <article class="step is-locked" id="step-attack">
           <header class="step-head">
-            <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"/></svg></span>
+            <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"></use></svg></span>
             <div>
-              <span class="eyebrow">Step 2</span>
-              <h3>敵対的音声を生成する</h3>
+              <span class="eyebrow">Step 2</span><h3>敵対的音声を生成する</h3>
             </div>
           </header>
-          <p>録音からマスクを最適化し、話者の特徴を選んだターゲット話者の方向へずらします。</p>
-          <fieldset class="targets" id="target-group">
-            <legend>ターゲット話者</legend>
-            <div class="target-list">
-              <div class="target">
-                <label class="target-choice"><input type="radio" name="target" value="female" checked><span>女性話者</span></label>
-                <div class="audio-row">
-                  <span class="audio-label" id="target-female-label">参照音声</span>
-                  <audio id="target-female-audio" controls preload="metadata" src="assets/targets/female.wav" aria-labelledby="target-female-label"></audio>
-                </div>
-              </div>
-              <div class="target">
-                <label class="target-choice"><input type="radio" name="target" value="male"><span>男性話者</span></label>
-                <div class="audio-row">
-                  <span class="audio-label" id="target-male-label">参照音声</span>
-                  <audio id="target-male-audio" controls preload="metadata" src="assets/targets/male.wav" aria-labelledby="target-male-label"></audio>
-                </div>
-              </div>
-            </div>
-          </fieldset>
+          <p>録音からマスクを最適化し、話者の特徴を、ターゲット話者の方向へずらします。ターゲット話者は、録音の話者から、いちばん遠い話者が、候補の中から自動で選ばれます。最適化は、研究室のサーバで行うため、録音をサーバへ送ります。</p>
           <fieldset class="segmented" id="steps-group">
-            <legend>反復回数</legend>
-            <label><input type="radio" name="steps" value="50"><span>50<small>速度優先</small></span></label>
-            <label><input type="radio" name="steps" value="100" checked><span>100<small>標準</small></span></label>
-            <label><input type="radio" name="steps" value="200"><span>200<small>実験と同じ条件</small></span></label>
+            <legend>反復回数</legend><label><input type="radio" name="steps" value="50"/><span>50<small>速度優先</small></span></label><label><input type="radio" name="steps" value="100" checked/><span>100<small>標準</small></span></label><label><input type="radio" name="steps" value="200"/><span>200<small>実験と同じ条件</small></span></label>
           </fieldset>
           <div class="actions">
-            <button class="btn btn-primary" id="attack-start" type="button" disabled><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"/></svg>生成を開始</button>
-            <button class="btn btn-secondary" id="attack-cancel" type="button" hidden><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#x"/></svg>中止</button>
+            <button class="btn btn-primary" id="attack-start" type="button" disabled><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"></use></svg>生成を開始</button><button class="btn btn-secondary" id="attack-cancel" type="button" hidden><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#x"></use></svg>中止</button>
           </div>
           <div class="progress" id="attack-progress" hidden>
-            <div class="progress-track"><div class="progress-fill" id="attack-bar"></div></div>
+            <div class="progress-track">
+              <div class="progress-fill" id="attack-bar">
+              </div>
+            </div>
             <p class="progress-label" id="attack-status" aria-live="polite"></p>
           </div>
           <p class="error" id="attack-error" role="alert" hidden></p>
           <div class="result" id="attack-result" hidden>
-            <dl class="stats" id="attack-stats"></dl>
+            <dl class="stats" id="attack-stats">
+            </dl>
+            <div class="audio-row">
+              <span class="audio-label" id="attack-target-label">ターゲット話者（録音の話者から、いちばん遠い話者）: <strong id="attack-target-name"></strong>　参照音声</span><audio id="attack-target-audio" controls preload="metadata" aria-labelledby="attack-target-label"></audio>
+            </div>
             <div class="audio-grid">
               <div class="audio-row">
-                <span class="audio-label" id="compare-clean-label">録音した音声</span>
-                <audio id="compare-clean" controls preload="metadata" aria-labelledby="compare-clean-label"></audio>
+                <span class="audio-label" id="compare-clean-label">録音した音声</span><audio id="compare-clean" controls preload="metadata" aria-labelledby="compare-clean-label"></audio>
               </div>
               <div class="audio-row">
-                <span class="audio-label" id="compare-adv-label">敵対的音声</span>
-                <audio id="compare-adv" controls preload="metadata" aria-labelledby="compare-adv-label"></audio>
+                <span class="audio-label" id="compare-adv-label">敵対的音声</span><audio id="compare-adv" controls preload="metadata" aria-labelledby="compare-adv-label"></audio>
               </div>
             </div>
             <div class="heat-grid">
               <figure class="heat-figure" id="heat-clean-figure">
-                <figcaption>録音のスペクトログラム</figcaption>
-                <canvas class="heat" id="heat-clean" role="img" aria-label="録音のスペクトログラム"></canvas>
+                <figcaption>録音のスペクトログラム</figcaption><canvas class="heat" id="heat-clean" role="img" aria-label="録音のスペクトログラム"></canvas>
               </figure>
               <figure class="heat-figure" id="heat-mask-figure">
-                <figcaption>マスクが削った成分</figcaption>
-                <canvas class="heat" id="heat-mask" role="img" aria-label="マスクが削った時間周波数成分"></canvas>
+                <figcaption>マスクが削った成分</figcaption><canvas class="heat" id="heat-mask" role="img" aria-label="マスクが削った時間周波数成分"></canvas>
               </figure>
               <figure class="heat-figure" id="heat-adv-figure">
-                <figcaption>敵対的音声のスペクトログラム</figcaption>
-                <canvas class="heat" id="heat-adv" role="img" aria-label="敵対的音声のスペクトログラム"></canvas>
+                <figcaption>敵対的音声のスペクトログラム</figcaption><canvas class="heat" id="heat-adv" role="img" aria-label="敵対的音声のスペクトログラム"></canvas>
               </figure>
             </div>
             <div class="heat-scale">
-              <span>弱い / 残す</span>
-              <span class="heat-scale-bar"></span>
-              <span>強い / 削る</span>
-              <span class="heat-scale-note">縦軸 0〜8 kHz、横軸は時間</span>
+              <span>弱い / 残す</span><span class="heat-scale-bar"></span><span>強い / 削る</span><span class="heat-scale-note">縦軸 0〜8 kHz、横軸は時間</span>
             </div>
           </div>
         </article>
-
         <article class="step is-locked" id="step-clone">
           <header class="step-head">
-            <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"/></svg></span>
+            <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"></use></svg></span>
             <div>
-              <span class="eyebrow">Step 3</span>
-              <h3>好きな文章でクローンする</h3>
+              <span class="eyebrow">Step 3</span><h3>好きな文章でクローンする</h3>
             </div>
           </header>
-          <p>入力した文章を、録音と敵対的音声それぞれの話者埋め込みで SpeechT5 に読み上げさせ、結果を比べます。</p>
-          <fieldset class="segmented" id="clone-lang-group" hidden>
-            <legend>読み上げる言語</legend>
-            <label><input type="radio" name="clone-lang" value="en" checked><span>英語<small>SpeechT5 標準</small></span></label>
-            <label><input type="radio" name="clone-lang" value="ja"><span>日本語<small>追加学習したモデル</small></span></label>
-          </fieldset>
-          <div class="field" id="clone-preset-field" hidden>
-            <label for="clone-preset">定型文から選ぶ</label>
-            <select id="clone-preset"></select>
-          </div>
+          <p>入力した文章を、録音と敵対的音声それぞれの話者埋め込みで SpeechT5 に読み上げさせ、結果を比べます。日本語で入力すると日本語で、英語で入力すると英語で読み上げます。</p>
           <div class="field">
             <div class="field-head">
-              <label for="clone-text" id="clone-text-label">読み上げる文章（英語）</label>
-              <span class="counter" id="clone-counter">0 / 200</span>
+              <label for="clone-text" id="clone-text-label">読み上げる文章</label><span class="counter" id="clone-counter">0 / 200</span>
             </div>
-            <textarea id="clone-text" rows="3" maxlength="200" lang="en" spellcheck="false">My voice belongs to me, and I never agreed to say these words.</textarea>
-            <p class="hint" id="clone-normalized" aria-live="polite">SpeechT5 は英語専用です。数字は英単語に展開して読み上げます。</p>
+            <textarea id="clone-text" rows="3" maxlength="200" lang="en" spellcheck="false">My voice belongs to me, and I never agreed to say these words.</textarea><p class="hint" id="clone-normalized" aria-live="polite">英語で読み上げます。数字は英単語に展開して読み上げます。</p>
           </div>
           <div class="actions">
-            <button class="btn btn-primary" id="clone-start" type="button" disabled><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"/></svg>クローンを生成</button>
-            <button class="btn btn-secondary" id="clone-cancel" type="button" hidden><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#x"/></svg>中止</button>
+            <button class="btn btn-primary" id="clone-start" type="button" disabled><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"></use></svg>クローンを生成</button><button class="btn btn-secondary" id="clone-cancel" type="button" hidden><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#x"></use></svg>中止</button>
           </div>
-          <p class="hint"><svg class="icon icon-inline" aria-hidden="true"><use href="assets/icons.svg#cloud-download"/></svg>初回のみ音声合成モデル（約 189 MiB）を Hugging Face から取得し、次回からはブラウザに保存した分を使います。取得するのはモデルだけで、音声や文章は送信しません。</p>
+          <p class="hint"><svg class="icon icon-inline" aria-hidden="true"><use href="assets/icons.svg#cloud-download"></use></svg>初回のみ音声合成モデル（約 189 MiB）を Hugging Face から取得し、次回からはブラウザに保存した分を使います。取得するのはモデルだけで、音声や文章は送信しません。</p>
           <div class="progress" id="clone-progress" hidden>
-            <div class="progress-track"><div class="progress-fill" id="clone-bar"></div></div>
+            <div class="progress-track">
+              <div class="progress-fill" id="clone-bar">
+              </div>
+            </div>
             <p class="progress-label" id="clone-status" aria-live="polite"></p>
           </div>
           <p class="error" id="clone-error" role="alert" hidden></p>
           <div class="result" id="clone-result" hidden>
             <div class="clone-grid">
               <section class="clone-card" id="clone-card-clean">
-                <span class="eyebrow">保護なし</span>
-                <h4>録音からのクローン</h4>
-                <audio id="clone-audio-clean" controls preload="metadata" aria-label="録音からのクローン音声"></audio>
-                <p class="verdict" id="clone-verdict-clean"></p>
+                <span class="eyebrow">保護なし</span><h4>録音からのクローン</h4><audio id="clone-audio-clean" controls preload="metadata" aria-label="録音からのクローン音声"></audio><p class="verdict" id="clone-verdict-clean"></p>
               </section>
               <section class="clone-card" id="clone-card-protected">
-                <span class="eyebrow">保護あり</span>
-                <h4>敵対的音声からのクローン</h4>
-                <audio id="clone-audio-protected" controls preload="metadata" aria-label="敵対的音声からのクローン音声"></audio>
-                <p class="verdict" id="clone-verdict-protected"></p>
+                <span class="eyebrow">保護あり</span><h4>敵対的音声からのクローン</h4><audio id="clone-audio-protected" controls preload="metadata" aria-label="敵対的音声からのクローン音声"></audio><p class="verdict" id="clone-verdict-protected"></p>
               </section>
             </div>
             <p class="summary" id="clone-summary" hidden></p>
           </div>
         </article>
+        <!-- END demo-content -->
       </div>
     </section>
 
     <section class="section tabpanel" id="scenario" role="tabpanel" aria-labelledby="tab-scenario" hidden>
       <div class="container">
+        <!-- BEGIN scenario-content (自動生成。content/scenario.mdx を編集して、npm run build:scenario を実行する。ここは手で直さない) -->
         <h2>研究のシナリオ</h2>
-        <p class="section-lead">自分の声が、本人の知らないところで使われる。この研究が想定する場面と、それを防ぐ仕組みを、図で説明する。</p>
+<p class="section-lead">自分の声が、本人の知らないところで使われる。この研究が想定する場面と、それを防ぐ仕組みを、図で説明する。</p>
+
         <nav class="toc" aria-label="研究のシナリオの内容">
           <ol>
-            <li><a href="#scenario-problem">何が問題か</a></li>
-            <li><a href="#scenario-defense">どう守るか</a></li>
-            <li><a href="#scenario-method">つくり方</a></li>
-            <li><a href="#scenario-demo">デモとの対応</a></li>
-            <li><a href="#scenario-results">結果の読み方</a></li>
-            <li><a href="#scenario-limits">条件と限界</a></li>
+            <li>
+              <a href="#scenario-problem">何が問題か</a>
+            </li>
+            <li>
+              <a href="#scenario-defense">どう守るか</a>
+            </li>
+            <li>
+              <a href="#scenario-method">つくり方</a>
+            </li>
+            <li>
+              <a href="#scenario-results">結果の読み方</a>
+            </li>
+            <li>
+              <a href="#scenario-limits">条件と限界</a>
+            </li>
           </ol>
         </nav>
-
-        <!-- BEGIN scenario-content (自動生成。content/scenario.mdx を編集して、npm run build:scenario を実行する。ここは手で直さない) -->
         <section class="block" id="scenario-problem" aria-labelledby="scenario-problem-title">
           <div>
             <span class="eyebrow">研究背景</span><h3 id="scenario-problem-title">何が問題なの？</h3>
@@ -269,298 +231,202 @@
           </figure>
           <p class="summary">クローンの声を決めるのは、その人の「声の特徴の数値」である。音声から取り出される「数値」が本人のものでなければ、クローンも本人の声にならない。この研究は、この性質を利用する。</p>
         </section>
-        <!-- END scenario-content -->
-
-        <section class="block protect" id="scenario-defense" aria-labelledby="scenario-defense-title">
+        <section class="block" id="scenario-defense" aria-labelledby="scenario-defense-title">
           <div>
-            <span class="eyebrow">対策</span>
-            <h3 id="scenario-defense-title">どう守るか</h3>
+            <span class="eyebrow">対策</span><h3 id="scenario-defense-title">どう守るか</h3>
           </div>
           <p>公開する前に、音声を少しだけ加工する。加工した音声を「敵対的音声」と呼ぶ。音の変化を小さく抑えつつ、取り出される数値を本人から遠ざけ、別の声（ターゲット話者）に近づける。</p>
-          <fieldset class="segmented" id="scenario-protect-group">
-            <legend>公開する音声</legend>
-            <label><input type="radio" name="scenario-protect" value="off"><span>加工しない<small>そのまま公開</small></span></label>
-            <label><input type="radio" name="scenario-protect" value="on" checked><span>加工する<small>敵対的音声</small></span></label>
-          </fieldset>
           <figure class="diagram">
-            <ol class="flow" aria-label="公開する音声を加工する場合と、しない場合の流れ">
-              <li class="flow-step">
+            <div class="branching stages-5" role="group" aria-label="公開する音声を加工しない場合と、加工する場合の流れ">
+              <div class="stage gc-1 gr-12">
                 <div class="flow-card">
-                  <span class="sticker sticker-purple"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"/></svg></span>
+                  <span class="sticker sticker-purple"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"></use></svg></span>
                   <div class="flow-body">
-                    <span class="flow-role">本人</span>
-                    <h4>本人の声</h4>
-                    <p>録音した自分の声</p>
+                    <span class="flow-role">本人</span><h4>本人の声</h4><p>録音した自分の声</p>
                   </div>
                 </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
-              </li>
-              <li class="flow-step">
-                <div class="flow-card" data-key="protect">
-                  <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"/></svg></span>
-                  <div class="flow-body">
-                    <span class="flow-role">保護</span>
-                    <h4><span data-state="off">加工しない</span><span data-state="on">敵対的音声に加工</span></h4>
-                    <p><span data-state="off">そのまま公開する</span><span data-state="on">話者の特徴を、ターゲット話者の方へずらす</span></p>
+                <a class="demo-chip" href="#step-record">デモ Step 1<svg class="icon" aria-hidden="true"><use href="assets/icons.svg#arrow-right"></use></svg></a>
+              </div>
+              <span class="flow-arrow is-skip h-only gc-2 gs-3 gr-1"><span class="skip-label"><span class="case-pill pill-gray">加工しない</span><span>そのまま公開する</span></span><span class="skip-line" aria-hidden="true"></span><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#arrow-right"></use></svg></span><span class="flow-arrow h-only gc-2 gr-2" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span><span class="flow-arrow v-only" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span>
+              <div class="alts">
+                <div class="case is-plain gc-3 gr-1">
+                  <span class="case-pill pill-gray">加工しない</span><p class="plain-box">そのまま公開する</p>
+                </div>
+                <div class="case gc-3 gr-2">
+                  <span class="case-pill pill-teal">加工する</span>
+                  <div class="flow-card">
+                    <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"></use></svg></span>
+                    <div class="flow-body">
+                      <span class="flow-role">保護</span><h4>公開前の加工</h4><p>話者の特徴を、ターゲット話者の方へずらす</p>
+                    </div>
                   </div>
                 </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
-              </li>
-              <li class="flow-step">
+                <a class="demo-chip gc-3 gr-3" href="#step-attack">デモ Step 2<svg class="icon" aria-hidden="true"><use href="assets/icons.svg#arrow-right"></use></svg></a>
+              </div>
+              <span class="flow-arrow h-only gc-4 gr-2" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span><span class="flow-arrow v-only" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span>
+              <div class="stage gc-5 gr-12">
                 <div class="flow-card">
-                  <span class="sticker sticker-gray"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#globe"/></svg></span>
+                  <span class="sticker sticker-gray"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#globe"></use></svg></span>
                   <div class="flow-body">
-                    <span class="flow-role">ネット上</span>
-                    <h4>公開・入手</h4>
-                    <p>攻撃者が、公開された音声を入手する</p>
+                    <span class="flow-role">ネット上</span><h4>公開・入手</h4><p>攻撃者が、公開された音声を入手する</p>
                   </div>
                 </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
-              </li>
-              <li class="flow-step">
+              </div>
+              <span class="flow-arrow h-only gc-6 gr-12" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span><span class="flow-arrow v-only" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span>
+              <div class="stage gc-7 gr-12">
                 <div class="flow-card">
-                  <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#binary"/></svg></span>
+                  <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#binary"></use></svg></span>
                   <div class="flow-body">
-                    <span class="flow-role">攻撃者</span>
-                    <h4>声の特徴を数値にする</h4>
-                    <p><span data-state="off">本人の特徴を表す数値になる</span><span data-state="on">本人から離れ、ターゲット話者に近い数値になる</span></p>
+                    <span class="flow-role">攻撃者</span><h4>声の特徴を数値にする</h4><p>話者エンコーダが、声の特徴を数値にまとめる</p>
                   </div>
                 </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
-              </li>
-              <li class="flow-step">
-                <div class="flow-card" data-key="result">
-                  <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"/></svg></span>
-                  <div class="flow-body">
-                    <span class="flow-role">攻撃者</span>
-                    <h4>合成された声</h4>
-                    <p><span data-state="off">本人にそっくりの声</span><span data-state="on">本人とは別の人に近い声</span></p>
+              </div>
+              <span class="flow-arrow h-only gc-8 gr-1" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span><span class="flow-arrow h-only gc-8 gr-2" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span><span class="flow-arrow v-only" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span>
+              <div class="alts">
+                <div class="case gc-9 gr-1">
+                  <span class="case-pill pill-gray">加工しない</span>
+                  <div class="flow-card is-ng">
+                    <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"></use></svg></span>
+                    <div class="flow-body">
+                      <span class="flow-role">攻撃者</span><h4>合成された声</h4><p>本人にそっくりの声</p>
+                      <div class="outcome outcome-ng">
+                        <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#circle-x"></use></svg>守れない
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </li>
-            </ol>
-            <figcaption>図 2　加工した場合と、しない場合の違い（切り替えで比べられる）</figcaption>
+                <div class="case gc-9 gr-2">
+                  <span class="case-pill pill-teal">加工する</span>
+                  <div class="flow-card is-ok">
+                    <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"></use></svg></span>
+                    <div class="flow-body">
+                      <span class="flow-role">攻撃者</span><h4>合成された声</h4><p>本人とは別の人に近い声</p>
+                      <div class="outcome outcome-ok">
+                        <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#circle-check"></use></svg>守れる
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <a class="demo-chip gc-9 gr-3" href="#step-clone">デモ Step 3<svg class="icon" aria-hidden="true"><use href="assets/icons.svg#arrow-right"></use></svg></a>
+              </div>
+            </div>
+            <figcaption>図 2　加工しない場合と、加工する場合の違い。下のボタンから、デモの対応する部分へ移れる</figcaption>
           </figure>
-          <p class="summary" aria-live="polite">
-            <span data-state="off">保護しないと、クローンは本人の声になる。</span>
-            <span data-state="on">加工しておくと、同じ手順でも、クローンは本人の声から離れる。</span>
-          </p>
-          <p class="hint">ターゲット話者は、クローンの声を近づける先の、別の人の声。</p>
-          <p class="notice"><svg class="icon icon-inline" aria-hidden="true"><use href="assets/icons.svg#info"/></svg>この効果は、攻撃者の話者エンコーダが分かっている条件で確かめたものだ。</p>
+          <p class="summary">保護しないと、クローンは本人の声になる。加工しておくと、同じ手順でも、クローンは本人の声から離れる。</p><p class="hint">ターゲット話者は、クローンの声を近づける先の、別の人の声。デモでは、録音の話者から、いちばん遠い話者が、自動で選ばれる。</p><p class="notice"><svg class="icon icon-inline" aria-hidden="true"><use href="assets/icons.svg#info"></use></svg>この効果は、攻撃者の話者エンコーダが分かっている条件で確かめたものだ。</p>
         </section>
-
         <section class="block" id="scenario-method" aria-labelledby="scenario-method-title">
           <div>
-            <span class="eyebrow">仕組み</span>
-            <h3 id="scenario-method-title">敵対的音声のつくり方</h3>
+            <span class="eyebrow">仕組み</span><h3 id="scenario-method-title">敵対的音声のつくり方</h3>
           </div>
           <p>声に雑音を足すのではなく、時間と周波数のマス目ごとに、成分を残すか削るかを決める「マスク」を掛ける。雑音を足す従来の方法と比べて、元の音からの変化を小さく保ちやすい。</p>
           <figure class="diagram">
-            <div class="grid-demo" id="mask-demo" role="img" aria-label="元の音声の成分にマスクを掛けると、削るマス目だけが消えた結果になることを示す模式図"></div>
+            <div class="grid-demo" id="mask-demo" role="img" aria-label="元の音声の成分にマスクを掛けると、削るマス目だけが消えた結果になることを示す模式図">
+            </div>
             <div class="cells-key">
-              <span class="key-item">成分の強さ（弱）<span class="cell cell-0" aria-hidden="true"></span><span class="cell cell-1" aria-hidden="true"></span><span class="cell cell-2" aria-hidden="true"></span><span class="cell cell-3" aria-hidden="true"></span><span class="cell cell-4" aria-hidden="true"></span>（強）</span>
-              <span class="key-item"><span class="cell mask-keep" aria-hidden="true"></span>残す</span>
-              <span class="key-item"><span class="cell mask-cut" aria-hidden="true"></span>削る</span>
+              <span class="key-item">成分の強さ（弱）<span class="cell cell-0" aria-hidden="true"></span><span class="cell cell-1" aria-hidden="true"></span><span class="cell cell-2" aria-hidden="true"></span><span class="cell cell-3" aria-hidden="true"></span><span class="cell cell-4" aria-hidden="true"></span>（強）</span><span class="key-item"><span class="cell mask-keep" aria-hidden="true"></span>残す</span><span class="key-item"><span class="cell mask-cut" aria-hidden="true"></span>削る</span>
             </div>
             <figcaption>図 3　マスクを掛けると、削るマス目の成分だけが消える（縦軸は周波数、横軸は時間。模式図）</figcaption>
           </figure>
           <p>では、どのマス目を削ればよいか。次の手順をくり返して、自動で探す。</p>
           <figure class="diagram">
-            <ol class="flow" aria-label="マスクを最適化する手順">
-              <li class="flow-step">
-                <div class="flow-card">
-                  <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#grid-3x3"/></svg></span>
-                  <div class="flow-body">
-                    <span class="flow-role">保護</span>
-                    <h4>音声にマスクを掛ける</h4>
-                    <p>マス目ごとに、残す度合いを掛ける</p>
+            <div class="flow-wrap">
+              <ol class="flow" aria-label="マスクを最適化する手順">
+                <li class="flow-step">
+                  <div class="flow-card">
+                    <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#grid-3x3"></use></svg></span>
+                    <div class="flow-body">
+                      <span class="flow-role">保護</span><h4>音声にマスクを掛ける</h4><p>マス目ごとに、残す度合いを掛ける</p>
+                    </div>
                   </div>
-                </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
-              </li>
-              <li class="flow-step">
-                <div class="flow-card">
-                  <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"/></svg></span>
-                  <div class="flow-body">
-                    <span class="flow-role">保護</span>
-                    <h4>敵対的音声ができる</h4>
-                    <p>残った成分を、音声に戻す</p>
+                  <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span>
+                </li>
+                <li class="flow-step">
+                  <div class="flow-card">
+                    <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"></use></svg></span>
+                    <div class="flow-body">
+                      <span class="flow-role">保護</span><h4>敵対的音声ができる</h4><p>残った成分を、音声に戻す</p>
+                    </div>
                   </div>
-                </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
-              </li>
-              <li class="flow-step">
-                <div class="flow-card">
-                  <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#binary"/></svg></span>
-                  <div class="flow-body">
-                    <span class="flow-role">攻撃者の側を模す</span>
-                    <h4>話者エンコーダに通す</h4>
-                    <p>声の特徴の数値を取り出す</p>
+                  <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span>
+                </li>
+                <li class="flow-step">
+                  <div class="flow-card">
+                    <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#binary"></use></svg></span>
+                    <div class="flow-body">
+                      <span class="flow-role">攻撃者の側を模す</span><h4>話者エンコーダに通す</h4><p>声の特徴の数値を取り出す</p>
+                    </div>
                   </div>
-                </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
-              </li>
-              <li class="flow-step">
-                <div class="flow-card">
-                  <span class="sticker sticker-gray"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#target"/></svg></span>
-                  <div class="flow-body">
-                    <span class="flow-role">採点</span>
-                    <h4>採点する</h4>
-                    <p>本人から遠いか、ターゲットに近いか、音の変化が小さいかを見る</p>
+                  <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span>
+                </li>
+                <li class="flow-step">
+                  <div class="flow-card">
+                    <span class="sticker sticker-gray"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#target"></use></svg></span>
+                    <div class="flow-body">
+                      <span class="flow-role">採点</span><h4>採点する</h4><p>本人から遠いか、ターゲットに近いか、音の変化が小さいかを見る</p>
+                    </div>
                   </div>
-                </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
-              </li>
-              <li class="flow-step">
-                <div class="flow-card">
-                  <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#rotate-ccw"/></svg></span>
-                  <div class="flow-body">
-                    <span class="flow-role">更新</span>
-                    <h4>マスクを更新する</h4>
-                    <p>点数がよくなるよう、少し直す</p>
+                  <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"></use></svg></span>
+                </li>
+                <li class="flow-step">
+                  <div class="flow-card">
+                    <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#rotate-ccw"></use></svg></span>
+                    <div class="flow-body">
+                      <span class="flow-role">更新</span><h4>マスクを更新する</h4><p>点数がよくなるよう、少し直す</p>
+                    </div>
                   </div>
-                </div>
-              </li>
-            </ol>
-            <div class="flow-loop">
-              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#rotate-ccw"/></svg>
-              <p>最初の「音声にマスクを掛ける」に戻り、これをくり返す。</p>
+                </li>
+              </ol>
+              <div class="flow-return loop-n-5">
+                <span class="flow-return-label"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#rotate-ccw"></use></svg>最初に戻って、くり返す</span>
+              </div>
             </div>
             <figcaption>図 4　マスクを最適化する手順</figcaption>
           </figure>
         </section>
-
-        <section class="block" id="scenario-demo" aria-labelledby="scenario-demo-title">
-          <div>
-            <span class="eyebrow">デモの使い方</span>
-            <h3 id="scenario-demo-title">このデモとの対応</h3>
-          </div>
-          <p>デモの 3 つのステップは、図 2 の次の部分に当たる。本人と攻撃者の両方を、1 人で試せる。</p>
-          <figure class="diagram">
-            <ol class="flow" aria-label="デモの 3 つのステップ">
-              <li class="flow-step">
-                <div class="flow-card">
-                  <span class="sticker sticker-purple"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#mic"/></svg></span>
-                  <div class="flow-body">
-                    <span class="flow-role">Step 1　本人の声</span>
-                    <h4>声を録音する</h4>
-                    <p>録音した声が、本人の声になる。録音するのは、自分の声に限る。</p>
-                    <a class="flow-link" href="#step-record">Step 1 を開く<svg class="icon" aria-hidden="true"><use href="assets/icons.svg#arrow-right"/></svg></a>
-                  </div>
-                </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
-              </li>
-              <li class="flow-step">
-                <div class="flow-card">
-                  <span class="sticker sticker-teal"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"/></svg></span>
-                  <div class="flow-body">
-                    <span class="flow-role">Step 2　加工</span>
-                    <h4>敵対的音声を生成する</h4>
-                    <p>ターゲット話者などを選び、録音から敵対的音声を作る。削った成分は、グラフで見られる。</p>
-                    <a class="flow-link" href="#step-attack">Step 2 を開く<svg class="icon" aria-hidden="true"><use href="assets/icons.svg#arrow-right"/></svg></a>
-                  </div>
-                </div>
-                <span class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="assets/icons.svg#arrow-right"/></svg></span>
-              </li>
-              <li class="flow-step">
-                <div class="flow-card">
-                  <span class="sticker sticker-orange"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#audio-lines"/></svg></span>
-                  <div class="flow-body">
-                    <span class="flow-role">Step 3　攻撃者のクローン</span>
-                    <h4>好きな文章でクローンする</h4>
-                    <p>同じ文章を、録音と敵対的音声からクローンして聴き比べ、本人との近さを確かめる。</p>
-                    <a class="flow-link" href="#step-clone">Step 3 を開く<svg class="icon" aria-hidden="true"><use href="assets/icons.svg#arrow-right"/></svg></a>
-                  </div>
-                </div>
-              </li>
-            </ol>
-            <figcaption>図 5　デモのステップと、図 2 の対応</figcaption>
-          </figure>
-          <p class="hint">図 2 の「公開・入手」は、デモでは省略する。録音と敵対的音声を、そのまま攻撃者の手に渡ったものとして扱う。音声はブラウザの外へ送らない。</p>
-          <p class="hint">Step 3 では、英語のほかに日本語も選べる。日本語での保護効果は、まだ評価していない。</p>
-        </section>
-
         <section class="block" id="scenario-results" aria-labelledby="scenario-results-title">
           <div>
-            <span class="eyebrow">結果の見方</span>
-            <h3 id="scenario-results-title">結果の読み方</h3>
+            <span class="eyebrow">結果の見方</span><h3 id="scenario-results-title">結果の読み方</h3>
           </div>
-          <p>結果の数値は、声の特徴どうしの近さを表す。大きいほど、同じ声に近い。</p>
+          <p>加工した音声は、人間には本人の声に聞こえ、機械には、ターゲット話者の声として判定される。結果の数値は、この機械の判定を、声の特徴どうしの近さで表す。大きいほど、同じ声に近い。</p>
           <figure class="diagram">
-            <svg class="sketch" viewBox="0 0 400 280" role="img" aria-labelledby="sketch-title sketch-desc">
-              <title id="sketch-title">声の特徴の空間での、クローンの位置の模式図</title>
-              <desc id="sketch-desc">左に本人、右にターゲット話者がいる。録音から作ったクローンは本人の近くにあり、敵対的音声から作ったクローンは、ターゲット話者の近くに移る。</desc>
-              <defs>
-                <marker id="sketch-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="sk-arrowhead" d="M0 0 L10 5 L0 10 z"/></marker>
-              </defs>
-              <circle class="sk-region" cx="110" cy="150" r="78"/>
-              <circle class="sk-region" cx="290" cy="150" r="78"/>
-              <circle class="sk-self" cx="104" cy="164" r="8"/>
-              <circle class="sk-target" cx="296" cy="164" r="8"/>
-              <line class="sk-leader" x1="110" y1="60" x2="121" y2="121"/>
-              <line class="sk-leader" x1="290" y1="60" x2="279" y2="121"/>
-              <path class="sk-clone" d="M122 124 l9 9 l-9 9 l-9 -9 z"/>
-              <path class="sk-clone" d="M278 124 l9 9 l-9 9 l-9 -9 z"/>
-              <path class="sk-move" d="M140 122 Q200 62 260 120" marker-end="url(#sketch-arrow)"/>
-              <text class="sk-label" x="110" y="34" text-anchor="middle">録音から</text>
-              <text class="sk-label" x="110" y="53" text-anchor="middle">作ったクローン</text>
-              <text class="sk-label" x="290" y="34" text-anchor="middle">敵対的音声から</text>
-              <text class="sk-label" x="290" y="53" text-anchor="middle">作ったクローン</text>
-              <text class="sk-move-label" x="200" y="80" text-anchor="middle">保護で動く</text>
-              <text class="sk-label" x="104" y="266" text-anchor="middle">本人</text>
-              <text class="sk-label" x="296" y="266" text-anchor="middle">ターゲット話者</text>
-            </svg>
-            <figcaption>図 6　声の特徴の空間での、クローンの位置の模式図</figcaption>
+            <svg class="perception" viewBox="0 0 400 340" role="img" aria-labelledby="perception-title perception-desc"><title id="perception-title">同じ敵対的音声を、人間と機械が受け取ったときの違い（模式図）</title><desc id="perception-desc">敵対的音声が、2 つに分かれる。人間が聞くと、本人の声に聞こえる。機械（話者エンコーダ）が判定すると、ターゲット話者に分類される。</desc><defs><marker id="perception-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="pc-arrowhead" d="M0 0 L10 5 L0 10 z"></path></marker></defs><rect class="pc-source" x="110" y="8" width="180" height="84" rx="14"></rect><line class="pc-wave" x1="140" y1="31" x2="140" y2="41"></line><line class="pc-wave" x1="155" y1="27" x2="155" y2="45"></line><line class="pc-wave" x1="170" y1="21" x2="170" y2="51"></line><line class="pc-wave" x1="185" y1="25" x2="185" y2="47"></line><line class="pc-wave" x1="200" y1="19" x2="200" y2="53"></line><line class="pc-wave" x1="215" y1="26" x2="215" y2="46"></line><line class="pc-wave" x1="230" y1="22" x2="230" y2="50"></line><line class="pc-wave" x1="245" y1="29" x2="245" y2="43"></line><line class="pc-wave" x1="260" y1="32" x2="260" y2="40"></line><text class="pc-label" x="200" y="78" text-anchor="middle">敵対的音声</text><path class="pc-arrow" d="M160 92 Q110 100 101 128" marker-end="url(#perception-arrow)"></path><path class="pc-arrow" d="M240 92 Q290 100 299 128" marker-end="url(#perception-arrow)"></path><circle class="pc-node-human" cx="100" cy="170" r="36"></circle><use class="pc-icon pc-icon-human" href="assets/icons.svg#ear" x="80" y="150" width="40" height="40"></use><circle class="pc-node-machine" cx="300" cy="170" r="36"></circle><use class="pc-icon pc-icon-machine" href="assets/icons.svg#cpu" x="280" y="150" width="40" height="40"></use><text class="pc-label" x="100" y="230" text-anchor="middle">人間が聞く</text><text class="pc-label" x="300" y="230" text-anchor="middle">機械が判定する</text><path class="pc-arrow" d="M100 238 L100 258" marker-end="url(#perception-arrow)"></path><path class="pc-arrow" d="M300 238 L300 258" marker-end="url(#perception-arrow)"></path><rect class="pc-result-human" x="20" y="262" width="160" height="64" rx="12"></rect><rect class="pc-result-machine" x="220" y="262" width="160" height="64" rx="12"></rect><text class="pc-label" x="100" y="288" text-anchor="middle">本人の声に</text><text class="pc-label" x="100" y="310" text-anchor="middle">聞こえる</text><text class="pc-label" x="300" y="288" text-anchor="middle">ターゲット話者</text><text class="pc-label" x="300" y="310" text-anchor="middle">に分類する</text></svg><figcaption>図 5　同じ敵対的音声を、人間と機械が受け取ったときの違い（模式図）</figcaption>
           </figure>
           <dl class="legend">
             <div>
-              <dt>本人との類似度</dt>
-              <dd>クローンが、本人の声にどれだけ近いか。保護で下がるほど、守れている。</dd>
+              <dt>本人との類似度</dt><dd>クローンが、本人の声にどれだけ近いか。保護で下がるほど、守れている。</dd>
             </div>
             <div>
-              <dt>ターゲットとの類似度</dt>
-              <dd>クローンが、ターゲット話者の声にどれだけ近いか。保護で上がるほど、入れ替わっている。</dd>
-            </div>
-            <div>
-              <dt>FSR</dt>
-              <dd>何度も試して、クローンが本人よりターゲット話者に近くなった割合。研究で使う指標で、デモ画面には出ない。</dd>
+              <dt>ターゲットとの類似度</dt><dd>クローンが、ターゲット話者の声にどれだけ近いか。保護で上がるほど、入れ替わっている。</dd>
             </div>
           </dl>
         </section>
-
         <section class="block" id="scenario-limits" aria-labelledby="scenario-limits-title">
           <div>
-            <span class="eyebrow">注意点</span>
-            <h3 id="scenario-limits-title">条件と限界</h3>
+            <span class="eyebrow">注意点</span><h3 id="scenario-limits-title">条件と限界</h3>
           </div>
           <p>この研究が示すのは、限られた条件での結果だ。</p>
           <ul class="limits">
             <li class="limit">
-              <h4>攻撃者のエンコーダが分かる条件</h4>
-              <p>攻撃者が使う話者エンコーダが分かっている前提で、それに合わせて最適化する。別のエンコーダを使うクローンには、効果が下がることがある。複数を同時に狙うと効きは広がるが、音質は下がる。</p>
+              <h4>攻撃者のエンコーダが分かる条件</h4><p>攻撃者が使う話者エンコーダが分かっている前提で、それに合わせて最適化する。別のエンコーダを使うクローンには、効果が下がることがある。複数を同時に狙うと効きは広がるが、音質は下がる。</p>
             </li>
             <li class="limit">
-              <h4>評価も同じエンコーダ</h4>
-              <p>類似度は、加工に使ったのと同じエンコーダで測る。別の方法で測ると、結果は変わりうる。</p>
+              <h4>評価も同じエンコーダ</h4><p>類似度は、加工に使ったのと同じエンコーダで測る。別の方法で測ると、結果は変わりうる。</p>
             </li>
             <li class="limit">
-              <h4>音の変化との兼ね合い</h4>
-              <p>強く効かせるほど、元の音からの変化は大きくなりやすい。</p>
+              <h4>音の変化との兼ね合い</h4><p>強く効かせるほど、元の音からの変化は大きくなりやすい。</p>
             </li>
             <li class="limit">
-              <h4>公開前の音声が対象</h4>
-              <p>すでに公開した、加工していない音声は守れない。完全な防御ではなく、悪用を難しくする手段の 1 つだ。</p>
+              <h4>公開前の音声が対象</h4><p>すでに公開した、加工していない音声は守れない。完全な防御ではなく、悪用を難しくする手段の 1 つだ。</p>
             </li>
             <li class="limit">
-              <h4>検証の範囲</h4>
-              <p>確かめたのは、限られた条件だけだ。それ以外でも同じ効果が出るとは限らない。</p>
+              <h4>検証の範囲</h4><p>確かめたのは、限られた条件だけだ。それ以外でも同じ効果が出るとは限らない。</p>
             </li>
             <li class="limit">
-              <h4>自分の声で試す</h4>
-              <p>このデモは、自分の声を守る仕組みを試すためのもの。他人の声では試さない。</p>
+              <h4>自分の声で試す</h4><p>このデモは、自分の声を守る仕組みを試すためのもの。他人の声では試さない。</p>
             </li>
           </ul>
         </section>
+        <!-- END scenario-content -->
       </div>
     </section>
   </main>
@@ -574,14 +440,21 @@
           <li>音声合成: Microsoft SpeechT5 / HiFi-GAN（MIT）、ONNX 変換は Xenova/speecht5_tts</li>
           <li>日本語の音素化: Open JTalk と NAIST Japanese Dictionary（いずれも修正 BSD）を WebAssembly に変換して使用</li>
           <li>日本語モデルの学習データ: JVS コーパス・JSUT コーパス（東京大学。音声の利用は学術・非営利の研究と個人利用に限られます）、LibriTTS（CC BY 4.0）</li>
+          <li>音質の評価: UTMOS（SpeechMOS、MIT）</li>
           <li>ターゲット話者の埋め込みと参照音声: LibriTTS（CC BY 4.0）。参照音声は発話を 16 kHz モノラルに変換し、音量を調整したもの</li>
-          <li>ONNX Runtime Web（MIT）、Inter（OFL-1.1）、Lucide（ISC）</li>
+          <li>ONNX Runtime Web（MIT）、Inter（OFL-1.1）、Lucide（ISC）、BudouX（Apache-2.0。Safari などでの日本語の折り返しに使用）</li>
         </ul>
       </div>
       <div>
         <h2 class="footer-title">プライバシー</h2>
-        <p>録音した音声と入力した文章は、お使いのブラウザの中でのみ処理します。ページを閉じると録音は消えます。ブラウザに保存するのは音声合成モデルだけです。</p>
+        <p>Step 2 では、録音した音声を、研究室のサーバへ送信して処理します。サーバは、処理が終わるとすぐに音声を削除し、保存しません。研究以外の目的には使わず、第三者へ提供しません。接続の記録（IP アドレスなど）は、サーバの運用上、残る場合があります。Step 3 で入力した文章は、お使いのブラウザの中でのみ処理し、サーバへは送信しません。録音できるのは、ご本人の声に限ります。ページを閉じると、録音と結果は消えます。ブラウザに保存するのは音声合成モデルだけです。</p>
       </div>
+    </div>
+    <div class="container footer-credit">
+      <p>2026年</p>
+      <p>中鹿研究室</p>
+      <p>作成者：中村幸多郎(k.nakamura⭐︎uec.ac.jp / 57cyclan⭐︎gmail.com)</p>
+      <p>⭐︎→＠</p>
     </div>
   </footer>
 </body>

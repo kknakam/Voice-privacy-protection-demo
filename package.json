@@ -2,10 +2,14 @@
   "name": "voice-privacy-protection-site",
   "private": true,
   "type": "module",
-  "description": "「研究のシナリオ」(content/scenario.mdx) を HTML に変換する。サイトの配信には使わない",
+  "description": "「研究のシナリオ」と「デモ」のタブの本文 (content/*.mdx) を HTML に変換する。サイトの配信には使わない",
   "scripts": {
-    "build:scenario": "node tools/scenario/build.mjs",
-    "check:scenario": "node tools/scenario/build.mjs --check"
+    "build": "node tools/scenario/build.mjs",
+    "check": "node tools/scenario/build.mjs --check",
+    "build:scenario": "node tools/scenario/build.mjs --only scenario",
+    "check:scenario": "node tools/scenario/build.mjs --check --only scenario",
+    "build:demo": "node tools/scenario/build.mjs --only demo",
+    "check:demo": "node tools/scenario/build.mjs --check --only demo"
   },
   "engines": {
     "node": ">=22"

@@ -1,10 +1,14 @@
-// 「研究のシナリオ」を、content/scenario.mdx から HTML にして、site/index.html の印の間に書き込む。
+// 本文 (MDX) を HTML にして、site/index.html の印の間に書き込む。
+//   content/scenario.mdx  → 「研究のシナリオ」のタブ (印: scenario-content)
+//   content/demo.mdx      → 「デモ」のタブ         (印: demo-content)
 //
-//   node tools/scenario/build.mjs           書き込む
-//   node tools/scenario/build.mjs --check   書き込まずに、index.html が MDX と一致しているかを調べる (食い違うと、終了コード 1)
-//   --source <ファイル>                      content/scenario.mdx の代わりに、別の MDX を使う (--check と合わせて、試すときに使う)
+//   node tools/scenario/build.mjs                       どちらも書き込む
+//   node tools/scenario/build.mjs --check               書き込まずに、index.html が MDX と一致しているかを調べる (食い違うと、終了コード 1)
+//   --only scenario|demo                                片方だけ
+//   --source <ファイル>                                  --only と合わせて、MDX の代わりに、別の MDX を使う (試すとき)
 //
-// 印: <!-- BEGIN scenario-content ... --> と <!-- END scenario-content --> の間は、自動生成。手で直さない。
+// 印: <!-- BEGIN <名前> ... --> と <!-- END <名前> --> の間は、自動生成。手で直さない。
+// 書き込んだあと、site/js の JS が探す id が、HTML に全部あるかも調べる (デモのタブの部品は、id で JS とつながるため)。
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,19 +16,23 @@ import { evaluate } from "@mdx-js/mdx";
 import { h } from "preact";
 import * as runtime from "preact/jsx-runtime";
 import { renderToString } from "preact-render-to-string";
-import { components, setup } from "./components.mjs";
+import { collected, components, setup } from "./components.mjs";
+import { demoComponents } from "./demo-components.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const sourceArg = process.argv.indexOf("--source");
-const SOURCE = sourceArg > 0 ? path.resolve(process.argv[sourceArg + 1]) : path.join(root, "content/scenario.mdx");
+const args = process.argv.slice(2);
+const flagValue = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const TARGET = path.join(root, "site/index.html");
 const SPRITE = path.join(root, "site/assets/icons.svg");
-const BEGIN = /^[ \t]*<!-- BEGIN scenario-content[^\n]*-->[ \t]*\n/m;
-const END = /^[ \t]*<!-- END scenario-content -->/m;
-const INDENT = 8;   // index.html で、節 (section.block) が並ぶ位置の字下げ
+const INDENT = 8;   // index.html で、節や、ステップが並ぶ位置の字下げ
+
+const DOCS = {
+  scenario: { source: "content/scenario.mdx", marker: "scenario-content", components },
+  demo: { source: "content/demo.mdx", marker: "demo-content", components: { ...components, ...demoComponents } },
+};
 
 // 枠になるタグだけを、行に分けて字下げする。段落や見出しの中の空白は、触らない
-const CONTAINERS = new Set(["section", "div", "figure", "ol", "ul", "li", "nav", "dl"]);
+const CONTAINERS = new Set(["section", "article", "header", "div", "figure", "ol", "ul", "li", "nav", "dl", "fieldset"]);
 function format(html) {
   const out = [];
   let depth = 0;
@@ -49,45 +57,98 @@ function format(html) {
   return out.join("\n") + "\n";
 }
 
-async function render() {
+// MDX を、HTML の文字列にする。known は、前の回に集めた、図の番号と節の一覧 (1 回目は null)
+async function renderOnce(source, doc, icons, known) {
+  setup({ icons, known, siteRoot: path.join(root, "site") });
+  const { default: Content } = await evaluate(source, { ...runtime, development: false });
+  return renderToString(h(Content, { components: doc.components }));
+}
+
+async function render(doc, sourcePath) {
   const sprite = fs.readFileSync(SPRITE, "utf8");
-  setup({ icons: new Set([...sprite.matchAll(/<symbol id="([^"]+)"/g)].map((m) => m[1])) });
-  const { default: Content } = await evaluate(fs.readFileSync(SOURCE, "utf8"), { ...runtime, development: false });
-  const html = renderToString(h(Content, { components }));
+  const icons = new Set([...sprite.matchAll(/<symbol id="([^"]+)"/g)].map((m) => m[1]));
+  const source = fs.readFileSync(sourcePath, "utf8");
+  // 目次や「図 N」の参照は、あとに出てくる節や図を指せるので、2 回描画する。1 回目で集め、2 回目で使う
+  await renderOnce(source, doc, icons, null);
+  const html = await renderOnce(source, doc, icons, collected());
   // CSP (style-src 'self'、script-src 'self') で、実行や適用が止められるものは、生成の段階で止める
   if (/\sstyle=/.test(html)) throw new Error("style 属性は使えません (CSP でブロックされます)。色や余白は、CSS のクラスで指定してください");
   if (/<script[\s>]/i.test(html) || /\son[a-z]+=/i.test(html)) throw new Error("<script> やイベント属性 (onclick など) は使えません (CSP でブロックされます)");
   return format(html);
 }
 
-const checkOnly = process.argv.includes("--check");
-const html = fs.readFileSync(TARGET, "utf8");
-const begin = BEGIN.exec(html);
-const end = END.exec(html);
-if (!begin || !end || end.index < begin.index) {
-  console.error("site/index.html に、<!-- BEGIN scenario-content ... --> と <!-- END scenario-content --> の印がありません");
+// JS が id で探す部品が、HTML に全部あるか。JS の文字列から、id らしいもの (接頭辞つき) を拾って、突き合わせる
+const ID_PREFIX = "(?:record|attack|clone|compare|heat|step|steps|env|tab|scenario|mask)";
+function checkIds(html) {
+  const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  const problems = [];
+  for (const file of ["site/js/demo/app.js", "site/js/site/tabs.js", "site/js/site/scenario.js"]) {
+    const text = fs.readFileSync(path.join(root, file), "utf8").replace(/\/\/.*$/gm, "");
+    const exact = new Set([...text.matchAll(new RegExp(`(["'])(${ID_PREFIX}-[a-z0-9-]+)\\1`, "g"))].map((m) => m[2]));
+    for (const id of exact) if (!ids.has(id) && !IGNORED.has(id)) problems.push(`${file} が探す id「${id}」が、HTML にありません`);
+    for (const m of text.matchAll(new RegExp(`\`(${ID_PREFIX}-[a-z0-9-]*)\\$\\{`, "g"))) {
+      if (![...ids].some((id) => id.startsWith(m[1]))) problems.push(`${file} が探す id「${m[1]}…」に当たる id が、HTML にありません`);
+    }
+  }
+  return problems;
+}
+// id ではなく、クラス名などの、同じ形の文字列
+const IGNORED = new Set(["step-head", "tab-busy", "mask-keep", "mask-cut"]);
+
+const checkOnly = args.includes("--check");
+const only = flagValue("--only");
+if (only && !DOCS[only]) {
+  console.error(`--only には、${Object.keys(DOCS).join(" か ")} を指定してください`);
   process.exit(2);
 }
-let generated;
-try {
-  generated = await render();
-} catch (e) {
-  // MDX の書き間違いは、行番号つきで、1 行にまとめて知らせる
-  const reason = e.reason ?? e.message;
-  const where = e.line && !/\(\d+:\d+/.test(reason) ? ` (${path.basename(SOURCE)} の ${e.line} 行目)` : "";
-  console.error(`エラー: ${reason}${where}`);
-  process.exit(1);
+const sourceArg = flagValue("--source");
+if (sourceArg && !only) {
+  console.error("--source は、--only と合わせて指定してください");
+  process.exit(2);
 }
-const next = html.slice(0, begin.index + begin[0].length) + generated + html.slice(end.index);
+
+let html = fs.readFileSync(TARGET, "utf8");
+const original = html;
+const summary = [];
+for (const [name, doc] of Object.entries(DOCS)) {
+  if (only && only !== name) continue;
+  const begin = new RegExp(`^[ \\t]*<!-- BEGIN ${doc.marker}[^\\n]*-->[ \\t]*\\n`, "m").exec(html);
+  const end = new RegExp(`^[ \\t]*<!-- END ${doc.marker} -->`, "m").exec(html);
+  if (!begin || !end || end.index < begin.index) {
+    console.error(`site/index.html に、<!-- BEGIN ${doc.marker} ... --> と <!-- END ${doc.marker} --> の印がありません`);
+    process.exit(2);
+  }
+  const sourcePath = sourceArg ? path.resolve(sourceArg) : path.join(root, doc.source);
+  let generated;
+  try {
+    generated = await render(doc, sourcePath);
+  } catch (e) {
+    // MDX の書き間違いは、行番号つきで、1 行にまとめて知らせる
+    const reason = e.reason ?? e.message;
+    const where = e.line && !/\(\d+:\d+/.test(reason) ? ` (${path.basename(sourcePath)} の ${e.line} 行目)` : "";
+    console.error(`エラー: ${reason}${where}`);
+    process.exit(1);
+  }
+  html = html.slice(0, begin.index + begin[0].length) + generated + html.slice(end.index);
+  summary.push(`${name}: 生成 ${generated.split("\n").length - 1} 行`);
+}
+
+if (!only) {
+  const problems = checkIds(html);
+  if (problems.length) {
+    console.error(["エラー: JS が探す id と、HTML が合っていません:", ...problems.map((p) => `  ${p}`)].join("\n"));
+    process.exit(1);
+  }
+}
 
 if (checkOnly) {
-  if (next === html) {
-    console.log("一致: site/index.html は、content/scenario.mdx から生成した内容と同じです");
+  if (html === original) {
+    console.log("一致: site/index.html は、content/*.mdx から生成した内容と同じです");
   } else {
-    console.error("不一致: site/index.html の印の間が、content/scenario.mdx と食い違っています。npm run build:scenario を実行してください");
+    console.error("不一致: site/index.html の印の間が、content/*.mdx と食い違っています。npm run build を実行してください");
     process.exit(1);
   }
 } else {
-  fs.writeFileSync(TARGET, next);
-  console.log(`更新: site/index.html (生成 ${generated.split("\n").length - 1} 行、図 ${(generated.match(/<figure /g) ?? []).length} 枚)`);
+  fs.writeFileSync(TARGET, html);
+  console.log(`更新: site/index.html (${summary.join("、")}、図 ${(html.match(/<figure class="diagram"/g) ?? []).length} 枚)`);
 }

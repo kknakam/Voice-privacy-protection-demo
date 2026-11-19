@@ -1,4 +1,4 @@
-// マイク録音と 16 kHz モノラルへの変換・整形。音声はこのブラウザの外へ出ない。
+// マイク録音と 16 kHz モノラルへの変換・整形。ここまでの処理は、このブラウザの中で行う (Step 2 で、整形した録音を、サーバへ送る)。
 
 const TARGET_RATE = 16000;
 const MIN_SEC = 2;
@@ -106,8 +106,13 @@ export async function prepareRecording({ raw, rate }, maxSec) {
   return wave;
 }
 
-// 再生用の 16 bit PCM WAV
+// 再生用の URL (Step 2 では、同じ WAV を、サーバへ送る)
 export function wavUrl(samples, sampleRate = TARGET_RATE) {
+  return URL.createObjectURL(wavBlob(samples, sampleRate));
+}
+
+// 16 bit PCM WAV
+export function wavBlob(samples, sampleRate = TARGET_RATE) {
   const buffer = new ArrayBuffer(44 + samples.length * 2);
   const view = new DataView(buffer);
   const text = (offset, s) => [...s].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
@@ -127,5 +132,5 @@ export function wavUrl(samples, sampleRate = TARGET_RATE) {
     const v = Math.max(-1, Math.min(1, samples[i]));
     view.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true);
   }
-  return URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
+  return new Blob([buffer], { type: "audio/wav" });
 }

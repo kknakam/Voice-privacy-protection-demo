@@ -54,7 +54,14 @@ body {
   font-size: 16px;
   line-height: 1.6;
   font-feature-settings: "lnum", "locl";
+  /* 日本語の折り返し: 文節の途中で切らない (auto-phrase。対応していないブラウザでは無視される)、小さい「っ」や「ー」を行頭に置かない、長い英字が溢れない */
+  word-break: auto-phrase;
+  line-break: strict;
+  overflow-wrap: break-word;
 }
+
+/* auto-phrase が使えないブラウザ (Safari など): js/site/linebreak.js が、文節の間に <wbr> を入れ、このクラスを付ける。文節の途中では折り返さない */
+.budoux body { word-break: keep-all; }
 
 h1, h2, h3, h4, p { margin: 0; }
 h1, h2, h3 { font-weight: 700; word-break: auto-phrase; text-wrap: balance; }
@@ -62,6 +69,9 @@ h2 { font-size: clamp(30px, 4.4vw, 40px); line-height: 1.15; letter-spacing: -0.
 h3 { font-size: 22px; line-height: 1.27; letter-spacing: -0.012em; }
 h4 { font-size: 20px; font-weight: 600; line-height: 1.4; letter-spacing: -0.006em; }
 p { word-break: auto-phrase; }
+/* 行の長さをそろえる (見出し・カードの題)、最後の行に 1〜2 文字だけ残さない (本文) */
+h4 { text-wrap: balance; }
+p, dd, li, figcaption { text-wrap: pretty; }
 a { color: var(--primary); }
 small { font-size: 12px; }
 
@@ -168,16 +178,6 @@ audio { display: block; width: 100%; height: 44px; }
 .segmented input:checked + span { box-shadow: inset 0 0 0 2px var(--primary); }
 .segmented input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
 .segmented input:disabled + span { opacity: 0.5; cursor: not-allowed; }
-.targets { margin: 0; padding: 0; border: 0; min-width: 0; }
-.targets legend { padding: 0; margin-bottom: 8px; color: var(--ink-secondary); font-size: 14px; font-weight: 600; }
-.target-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.target { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 16px 16px; background: var(--surface); border-radius: var(--r-md); box-shadow: inset 0 0 0 1px var(--hairline); }
-.target:has(input:checked) { box-shadow: inset 0 0 0 2px var(--primary); }
-.target-choice { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 600; cursor: pointer; }
-.target-choice input { width: 18px; height: 18px; flex: none; margin: 0; accent-color: var(--primary); cursor: pointer; }
-.target-choice:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--r-xs); }
-.target-choice:has(input:disabled) { opacity: 0.5; cursor: not-allowed; }
-.target-choice input:disabled { cursor: not-allowed; }
 
 /* 進捗 */
 .progress { display: flex; flex-direction: column; gap: 8px; }
@@ -203,6 +203,7 @@ audio { display: block; width: 100%; height: 44px; }
 /* 数値 */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin: 0; }
 .stats div { padding: 16px; background: var(--canvas-soft); border-radius: var(--r-md); }
+.stats small { display: block; margin-top: 2px; color: var(--ink-muted); font-size: 12px; font-weight: 400; line-height: 1.4; }
 .stats dt { color: var(--ink-muted); font-size: 13px; line-height: 1.4; }
 .stats dd { margin: 4px 0 0; font-size: 24px; font-weight: 600; line-height: 1.2; letter-spacing: -0.01em; }
 
@@ -215,10 +216,6 @@ audio { display: block; width: 100%; height: 44px; }
 textarea { width: 100%; min-height: 84px; padding: 10px; resize: vertical; background: var(--surface); color: var(--ink); border: 1px solid #dddddd; border-radius: var(--r-xs); font: inherit; font-size: 16px; line-height: 1.5; }
 textarea:focus { outline: none; border-color: var(--primary); box-shadow: var(--shadow-1); }
 textarea:disabled { background: var(--canvas-soft); color: var(--ink-muted); }
-select { width: 100%; min-height: 44px; padding: 8px 10px; background: var(--surface); color: var(--ink); border: 1px solid #dddddd; border-radius: var(--r-xs); font: inherit; font-size: 16px; }
-select:focus { outline: none; border-color: var(--primary); box-shadow: var(--shadow-1); }
-select:disabled { background: var(--canvas-soft); color: var(--ink-muted); }
-#clone-lang-group[hidden], #clone-preset-field[hidden] { display: none; }
 
 /* クローン比較 */
 .clone-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
@@ -247,11 +244,67 @@ select:disabled { background: var(--canvas-soft); color: var(--ink-muted); }
 .flow-card p { color: var(--ink-muted); font-size: 14px; line-height: 1.5; }
 .flow-arrow { display: flex; align-items: center; justify-content: center; flex: none; height: 28px; color: var(--ink-muted); }
 .flow-arrow .icon { transform: rotate(90deg); }
-.flow-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-weight: 600; font-size: 14px; }
+/* カードの下の、デモのどの部分に当たるかを示すボタン (リンクのときは、押せる範囲を広げる) */
+.demo-chip { white-space: nowrap; position: relative; align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; padding: 1px 10px; border-radius: var(--r-full); background: #e6f1fc; color: var(--primary-active); font-size: 12px; font-weight: 600; line-height: 1.6; text-decoration: none; }
+a.demo-chip::after { content: ""; position: absolute; inset: -11px -6px; }
+a.demo-chip:hover { background: var(--primary-active); color: var(--on-primary); }
+.demo-chip .icon { width: 12px; height: 12px; }
+.demo-chip.is-plain { background: transparent; color: var(--ink-muted); box-shadow: inset 0 0 0 1px var(--ink-faint); }
 
-.flow-loop { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px dashed var(--ink-faint); border-radius: var(--r-md); color: var(--ink-secondary); }
-.flow-loop p { font-size: 14px; line-height: 1.5; }
-.flow-loop .icon { color: var(--ink-muted); }
+/* 分岐のある流れ (<Branching>)。共通の手順 = 上下の段をまたぐカード、分かれる手順 = 上の段と下の段に 1 枚ずつ。
+   位置は、gc-N (列)、gr-N (行。12 は、上下の 2 段分、3 は、ボタンの段)、gs-3 (3 列分) のクラスで決まる (広い画面の、格子だけで効く) */
+.branching { display: flex; flex-direction: column; }
+.alts { display: flex; flex-direction: column; gap: 4px; }
+.case { position: relative; display: flex; flex-direction: column; padding-top: 16px; }
+.case .flow-card { flex: 1; }
+.case-pill { white-space: nowrap; position: absolute; top: 6px; left: 12px; z-index: 1; padding: 1px 10px; border-radius: var(--r-full); font-size: 12px; font-weight: 700; line-height: 1.6; }
+.pill-gray { background: #dcdad7; color: var(--ink-secondary); }
+.pill-teal { background: #cfeeec; color: #125a58; }
+.pill-purple { background: var(--accent-purple); color: var(--accent-purple-deep); }
+.pill-orange { background: #fbe0cc; color: var(--accent-orange-deep); }
+.plain-box { margin: 0; padding: 14px 16px; border: 1px dashed var(--ink-faint); border-radius: var(--r-md); color: var(--ink-secondary); font-size: 14px; line-height: 1.5; }
+.h-only { display: none; }
+.skip-line { display: none; }
+.gr-1 { grid-row: 1; }
+.gr-2 { grid-row: 2; }
+.gr-3 { grid-row: 3; }
+.gr-12 { grid-row: 1 / span 2; }
+.gs-3 { grid-column-end: span 3; }
+.gc-1 { grid-column-start: 1; }
+.gc-2 { grid-column-start: 2; }
+.gc-3 { grid-column-start: 3; }
+.gc-4 { grid-column-start: 4; }
+.gc-5 { grid-column-start: 5; }
+.gc-6 { grid-column-start: 6; }
+.gc-7 { grid-column-start: 7; }
+.gc-8 { grid-column-start: 8; }
+.gc-9 { grid-column-start: 9; }
+.gc-10 { grid-column-start: 10; }
+.gc-11 { grid-column-start: 11; }
+.gc-12 { grid-column-start: 12; }
+.gc-13 { grid-column-start: 13; }
+/* 目的が達成されたかどうか (丸 = できた、ばつ = できない) を示すカード */
+.flow-card.is-ok { background: #eaf7f6; border-color: var(--accent-teal); box-shadow: inset 0 0 0 1px var(--accent-teal); }
+.flow-card.is-ng { background: #fbeee4; border-color: var(--accent-orange); box-shadow: inset 0 0 0 1px var(--accent-orange); }
+.outcome { white-space: nowrap; display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 10px; border-radius: var(--r-md); font-size: 14px; font-weight: 700; line-height: 1.4; }
+.outcome .icon { width: 22px; height: 22px; }
+.outcome-ok { background: #cfeeec; color: #125a58; }
+.outcome-ng { background: #fbe0cc; color: var(--accent-orange-deep); }
+
+/* くり返す流れ (<Flow loop>): 最後の手順の下から、最初の手順の下へ戻る矢印。左端が最初のカードの中央、右端が最後のカードの中央 */
+.flow-wrap { position: relative; padding-right: 44px; }
+.flow-return { position: absolute; top: 24px; bottom: 24px; right: 8px; width: 36px; border: 2px solid var(--ink-muted); border-left: 0; border-radius: 0 12px 12px 0; }
+.flow-return::before { content: ""; position: absolute; top: -8px; left: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-right: 9px solid var(--ink-muted); }
+.flow-return-label { position: absolute; top: 50%; right: -11px; display: flex; align-items: center; gap: 4px; padding: 8px 0; background: var(--canvas-soft); color: var(--ink-secondary); font-size: 13px; font-weight: 600; line-height: 20px; white-space: nowrap; writing-mode: vertical-rl; transform: translateY(-50%); }
+.flow-return-label .icon { width: 14px; height: 14px; }
+
+/* カードのイラスト (アイコンの代わり)。色の枠は、役割の色 */
+.flow-illust { display: flex; align-items: center; justify-content: center; flex: none; width: 96px; aspect-ratio: 4 / 3; overflow: hidden; border-radius: var(--r-md); }
+.flow-illust img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.tint-purple { background: #f3eafc; }
+.tint-teal { background: #e4f5f4; }
+.tint-orange { background: #fdeee2; }
+.tint-gray { background: #f1f0ee; }
 
 /* 目次 */
 .toc ol { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; padding: 0; list-style: none; }
@@ -276,20 +329,22 @@ select:disabled { background: var(--canvas-soft); color: var(--ink-muted); }
 .key-item { display: inline-flex; align-items: center; gap: 4px; }
 .cells-key .cell { flex: none; width: 14px; height: 14px; aspect-ratio: auto; border: 1px solid var(--hairline); }
 
-/* 図 6: 声の特徴の空間 (模式図)。色の意味: 紫 = 本人、青 = ターゲット話者、橙 = クローン、青緑 = 保護 */
-.sketch { display: block; width: 100%; max-width: 520px; height: auto; margin: 0 auto; }
-.sk-region { fill: none; stroke: var(--ink-faint); stroke-width: 1.5; stroke-dasharray: 5 5; }
-.sk-self { fill: var(--accent-purple); stroke: var(--accent-purple-deep); stroke-width: 2; }
-.sk-target { fill: var(--accent-sky); stroke: #0b4a7a; stroke-width: 2; }
-.sk-clone { fill: var(--accent-orange); stroke: var(--accent-orange-deep); stroke-width: 1.5; stroke-linejoin: round; }
-.sk-move { fill: none; stroke: var(--accent-teal); stroke-width: 2.5; stroke-linecap: round; }
-.sk-arrowhead { fill: var(--accent-teal); }
-.sk-leader { stroke: var(--ink-faint); stroke-width: 1; }
-.sk-label { fill: var(--ink-secondary); font-size: 16px; font-weight: 600; }
-.sk-move-label { fill: #125a58; font-size: 15px; font-weight: 600; }
+/* 結果の読み方: 人間と機械の模式図。色: 青緑 = 加工した音声、紫 = 人間、橙 = 機械 */
+.perception { display: block; width: 100%; max-width: 480px; height: auto; margin: 0 auto; }
+.pc-source { fill: #cfeeec; stroke: #125a58; stroke-width: 2; }
+.pc-wave { stroke: #125a58; stroke-width: 4; stroke-linecap: round; }
+.pc-node-human { fill: var(--accent-purple); stroke: var(--accent-purple-deep); stroke-width: 2; }
+.pc-node-machine { fill: #fbe0cc; stroke: var(--accent-orange-deep); stroke-width: 2; }
+.pc-icon-human { color: var(--accent-purple-deep); }
+.pc-icon-machine { color: var(--accent-orange-deep); }
+.pc-result-human { fill: #f3eafc; stroke: var(--accent-purple-deep); stroke-width: 2; }
+.pc-result-machine { fill: #fdeee2; stroke: var(--accent-orange-deep); stroke-width: 2; }
+.pc-arrow { fill: none; stroke: var(--ink-muted); stroke-width: 2; stroke-linecap: round; }
+.pc-arrowhead { fill: var(--ink-muted); }
+.pc-label { fill: var(--ink-secondary); font-size: 16px; font-weight: 600; }
 
 /* 結果の読み方: 指標の説明 */
-.legend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
 .legend > div { padding: 14px 16px; background: var(--canvas-soft); border-radius: var(--r-md); }
 .legend dt { font-size: 15px; font-weight: 600; }
 .legend dd { margin: 4px 0 0; color: var(--ink-secondary); font-size: 14px; line-height: 1.6; }
@@ -299,25 +354,19 @@ select:disabled { background: var(--canvas-soft); color: var(--ink-muted); }
 .limit h4 { font-size: 16px; line-height: 1.4; }
 .limit p { color: var(--ink-secondary); font-size: 14px; line-height: 1.6; }
 
-/* 加工する / しない の切り替え (ラジオボタンだけで動く) */
-.protect:has(input[value="off"]:checked) [data-state="on"],
-.protect:has(input[value="on"]:checked) [data-state="off"] { display: none; }
-.protect:has(input[value="off"]:checked) .flow-card[data-key="protect"] { background: transparent; border-style: dashed; border-color: var(--ink-faint); }
-.protect:has(input[value="off"]:checked) .flow-card[data-key="protect"] .sticker { opacity: 0.5; }
-.protect:has(input[value="off"]:checked) .flow-card[data-key="result"] { background: #fbeee4; border-color: var(--accent-orange); box-shadow: inset 0 0 0 1px var(--accent-orange); }
-.protect:has(input[value="on"]:checked) .flow-card[data-key="protect"],
-.protect:has(input[value="on"]:checked) .flow-card[data-key="result"] { background: #eaf7f6; border-color: var(--accent-teal); box-shadow: inset 0 0 0 1px var(--accent-teal); }
-
 /* フッター */
 .footer { background: var(--canvas-soft); border-top: 1px solid var(--hairline); padding: 32px 0 48px; color: var(--ink-secondary); font-size: 14px; line-height: 1.5; }
 .footer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
 .footer-title { font-size: 14px; font-weight: 600; letter-spacing: 0; line-height: 1.4; margin-bottom: 8px; }
+/* 制作のクレジット (年、研究室、作成者)。メールアドレスは、画面が狭いと、途中で折り返す */
+.footer-credit { display: flex; flex-wrap: wrap; gap: 4px 24px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--hairline); color: var(--ink-secondary); font-size: 14px; }
+.footer-credit a { overflow-wrap: anywhere; }
 .footer-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 
 @media (max-width: 840px) {
   .hero-inner { grid-template-columns: minmax(0, 1fr); padding-top: 48px; padding-bottom: 48px; }
   .hero-art { display: none; }
-  .footer-grid, .target-list, .legend, .limits { grid-template-columns: minmax(0, 1fr); }
+  .footer-grid, .legend, .limits { grid-template-columns: minmax(0, 1fr); }
   .heat-grid { grid-template-columns: minmax(0, 1fr); }
   .heat { height: 128px; }
 }
@@ -337,14 +386,63 @@ select:disabled { background: var(--canvas-soft); color: var(--ink-muted); }
   .nav-brand { font-size: 14px; }
 }
 
-/* 広い画面では、手順の流れを横に並べる (狭いと、1 つあたりの幅が足りない) */
+/* 広い画面では、手順の流れを横に並べる (狭いと、1 つあたりの幅が足りない)。
+   1 つの手順 = カード + 矢印の列 (24px)。最後の手順にも矢印の列を空けて、すべての列の幅を揃える。ボタンは、カードの下 */
 @media (min-width: 1040px) {
   .flow { flex-direction: row; }
-  .flow-step { flex: 1 1 0; flex-direction: row; }
-  .flow-step:last-child::after { content: ""; flex: none; width: 24px; }   /* 最後だけ矢印が無いので、同じ幅の空きを置いて、他の列と幅を揃える */
-  .flow-card { flex-direction: column; gap: 10px; }
-  .flow-arrow { width: 24px; height: auto; }
+  .flow-step { flex: 1 1 0; display: grid; grid-template-columns: minmax(0, 1fr) 24px; grid-template-rows: 1fr auto; }
+  .flow-step > .flow-card { grid-column: 1; grid-row: 1; flex-direction: column; gap: 10px; }
+  .flow-step > .demo-chip { grid-column: 1; grid-row: 2; }
+  .flow-step > .flow-arrow { grid-column: 2; grid-row: 1; width: 24px; height: auto; }
   .flow-arrow .icon { transform: none; }
+  .flow-card.has-illust .flow-illust { width: 100%; }
+  /* 分岐のある流れ: 手順 1 つ = カード 1 列 + 矢印 1 列 (24px)。上の段、下の段、その下がボタンの段 */
+  .branching { display: grid; }
+  .branching.stages-2 { grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr); }
+  .branching.stages-3 { grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr); }
+  .branching.stages-4 { grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr); }
+  .branching.stages-5 { grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr); }
+  .branching.stages-6 { grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr); }
+  .branching.stages-7 { grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr); }
+  .alts { display: contents; }
+  /* 分岐の図の寸法 (広い画面)。カードは、すべて高さ 208px。
+     上の段 = 224px (カード 208 + 札の分 16)、下の段 = 224px。上の段のカードは y = 16〜224、下の段のカードは y = 240〜448 (y は、図の上端から)。
+     共通のカード (本人の声、公開・入手、声の特徴を数値にする) は、上下の段のカードの真ん中 (y = 232) に置く (上端 y = 128、下端 y = 336)。
+     共通のカードから出る 2 本の矢印は、その高さの 1/4 (y = 180) と 3/4 (y = 284) から伸びる。どちらも、上下の段のカードの内側 (辺から 44px) に当たる。
+     本文を増やして、カードが 208px を超えると、矢印の高さがずれる */
+  .branching { grid-template-rows: minmax(224px, auto) minmax(224px, auto) auto; }
+  .branching > .stage { margin-top: 128px; }
+  .stage > .flow-card, .case .flow-card { flex: none; min-height: 208px; }
+  .case .flow-card { flex: 1; }
+  .stage > .demo-chip, .alts > .demo-chip { margin-top: 8px; }
+  .branching .flow-card { flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
+  .branching .flow-body { align-items: center; }
+  .branching .outcome { align-self: stretch; justify-content: center; }
+  .case.is-plain { display: none; }
+  .v-only { display: none; }
+  /* 横の矢印: 上の段の矢印は、図の上端から 180px (padding-top 136px で、中央を下げる)、下の段の矢印は、段の上端から 60px = 図の上端から 284px (padding-bottom 104px で、中央を上げる)。
+     上下の段をまたぐ矢印 (共通のカードどうし) は、共通のカードの中央 (232px。padding-top 16px) */
+  .h-only { display: flex; height: auto; width: auto; }
+  .h-only.gr-1 { padding-top: 136px; }
+  .h-only.gr-2 { padding-bottom: 104px; }
+  .h-only.gr-12 { padding-top: 16px; }
+  .flow-arrow.is-skip { position: relative; justify-content: flex-end; }
+  .skip-line { display: block; flex: 1; height: 2px; background: var(--ink-muted); margin-right: -6px; }
+  .skip-label { position: absolute; left: 0; right: 0; bottom: 50px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 4px; color: var(--ink-secondary); font-size: 13px; line-height: 1.4; text-align: center; }
+  .skip-label .case-pill { position: static; }
+  .is-skip.gr-2 .skip-label { bottom: 170px; }
+  /* くり返す流れ: カードの下を、右から左へ通って、最初のカードへ戻る */
+  .flow-wrap { padding-right: 0; padding-bottom: 12px; }
+  .flow-return { position: relative; top: auto; bottom: auto; right: auto; width: auto; height: 36px; margin-top: 2px; border: 2px solid var(--ink-muted); border-top: 0; border-radius: 0 0 12px 12px; }
+  .flow-return::before { top: -2px; left: -7px; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 0; border-bottom: 9px solid var(--ink-muted); }
+  .flow-return-label { top: auto; right: auto; bottom: -11px; left: 50%; padding: 0 10px; writing-mode: horizontal-tb; transform: translateX(-50%); }
+  .loop-n-2 { margin-left: calc(25.0% - 12px); margin-right: calc(25.0% + 12px); }
+  .loop-n-3 { margin-left: calc(16.666666666666668% - 12px); margin-right: calc(16.666666666666668% + 12px); }
+  .loop-n-4 { margin-left: calc(12.5% - 12px); margin-right: calc(12.5% + 12px); }
+  .loop-n-5 { margin-left: calc(10.0% - 12px); margin-right: calc(10.0% + 12px); }
+  .loop-n-6 { margin-left: calc(8.333333333333334% - 12px); margin-right: calc(8.333333333333334% + 12px); }
+  .loop-n-7 { margin-left: calc(7.142857142857143% - 12px); margin-right: calc(7.142857142857143% + 12px); }
+  .loop-n-8 { margin-left: calc(6.25% - 12px); margin-right: calc(6.25% + 12px); }
 }
 
 /* 狭い画面では、タブをブランド名の下に 1 行で並べる */

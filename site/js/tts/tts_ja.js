@@ -4,6 +4,7 @@
 //   ja_postnet_vocoder.onnx スペクトログラム -> postnet -> HiFi-GAN -> 波形
 
 import { Cancelled } from "./tts.js";
+import { symbolsToIds } from "./ja_g2p.js";
 
 // 文の終わりの検出: デコーダが出す align (選んだ cross-attention のヘッドの平均) の最大位置が、入力の末尾 END_TAIL 記号以内に
 // 届いたら、その END_MARGIN ステップ後に止める。モデル自身の停止判定が働かず、同じ文を繰り返して読んでしまう場合 (JVS の声で
@@ -11,6 +12,63 @@ import { Cancelled } from "./tts.js";
 // 評価 (30 文 x 8 話者): 崩れた生成 14 件の文字誤り率 100% -> 0%、正常な生成は 1.62% -> 1.59% (悪化した件数 0)
 const END_TAIL = 2;
 const END_MARGIN = 8;
+
+// 長い文の分割: 入力長 (記号列の長さ。末尾の </s> を含む) が SPLIT_FROM 以上のとき、ポーズ (_) の位置で、SPLIT_MAX 記号以内の区間に分けて、
+// 区間ごとに合成し、SPLIT_GAP_SEC 秒の無音を挟んでつなぐ。長い文では、声によっては、途中の語句が抜けたり繰り返されたりする
+// (日本語の声 (JVS) の話者に近い声で起きやすい)。生成し直しても同じ失敗が起きるので、短い入力にして避ける。
+// 評価 (長さ 100 以上の新しい長文 24 文 x 話者 8 人 x 本人/保護後。設定は評価の前に固定): 読みの文字誤り率が 0.2 を超えた件は、
+// JVS の話者 4 人で 31/192 (16.1%) -> 1/192 (0.5%)、それ以外の話者 4 人で 0/192 -> 0/192。分割で悪化した件はなし。
+export const SPLIT_FROM = 100;
+export const SPLIT_MAX = 60;
+export const SPLIT_GAP_SEC = 0.1;
+const SAMPLE_RATE = 16000;
+
+// ID 列 -> 区間ごとの ID 列 (分けない場合は [ids])。各区間は ^ で始まり、$ (最後の区間は元の文末記号) で終わる
+export function splitIds(ids, ja, { from = SPLIT_FROM, max = SPLIT_MAX } = {}) {
+  if (ids.length < from) return [ids];
+  const body = ids.slice(0, -1).map((id) => ja.symbols[id - ja.baseVocab]); // 末尾の </s> を除く
+  const end = body[body.length - 1];
+  if (body[0] !== "^" || (end !== "$" && end !== "?")) return [ids];
+  const clauses = [];
+  let cur = [];
+  for (const s of body.slice(1, -1)) {
+    if (s === "_") {
+      clauses.push(cur);
+      cur = [];
+    } else cur.push(s);
+  }
+  clauses.push(cur);
+  const segs = [];
+  cur = [];
+  for (const c of clauses) {
+    if (cur.length > 0 && cur.length + 1 + c.length > max) {
+      segs.push(cur);
+      cur = [];
+    }
+    cur = cur.concat(cur.length > 0 ? ["_"] : [], c);
+  }
+  segs.push(cur);
+  if (segs.length > 1 && segs[segs.length - 1].length < 20) {
+    const last = segs.pop(); // 短すぎる末尾は、手前の区間につなぐ
+    segs[segs.length - 1] = segs[segs.length - 1].concat(["_"], last);
+  }
+  if (segs.length === 1) return [ids];
+  const out = segs.map((sg, i) => symbolsToIds(["^", ...sg, i === segs.length - 1 ? end : "$"], ja));
+  return out.every(Boolean) ? out : [ids];
+}
+
+// 区間ごとの波形を、無音を挟んでつなぐ
+export function joinWaves(waves, gapSec = SPLIT_GAP_SEC) {
+  if (waves.length === 1) return waves[0];
+  const gap = Math.round(gapSec * SAMPLE_RATE);
+  const out = new Float32Array(waves.reduce((n, w) => n + w.length, 0) + gap * (waves.length - 1));
+  let offset = 0;
+  for (const w of waves) {
+    out.set(w, offset);
+    offset += w.length + gap;
+  }
+  return out;
+}
 
 const LAYERS = 6;
 const HEADS = 12;
