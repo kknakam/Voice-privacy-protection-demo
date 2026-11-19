@@ -1,0 +1,11 @@
+# Cloudflare Tunnel の設定の雛形 (名前つきのトンネル用)。~/.cloudflared/config.yml に置く。
+#   cloudflared tunnel login                       Cloudflare にログイン (ドメインを登録してあるアカウント)
+#   cloudflared tunnel create voice-demo           トンネルを作る (ID と、認証の JSON ができる)
+#   cloudflared tunnel route dns voice-demo demo.example.org
+#   scripts/tunnel.sh run voice-demo
+tunnel: TUNNEL_ID
+credentials-file: /home/YOUR_USER/.cloudflared/TUNNEL_ID.json
+ingress:
+  - hostname: demo.example.org
+    service: http://127.0.0.1:8000
+  - service: http_status:404

@@ -1,0 +1,21 @@
+# systemd の設定の雛形。User と、パスを、環境に合わせて書き換えて、/etc/systemd/system/ に置く。
+#   sudo cp deploy/voice-demo.service /etc/systemd/system/ && sudo systemctl enable --now voice-demo
+# 環境 (研究のリポジトリ、Python、重みの場所) は、server/env.local に書く (server/env.example を参照)。
+[Unit]
+Description=Voice privacy demo (site + adversarial audio API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_USER
+WorkingDirectory=/path/to/demo_site
+ExecStart=/path/to/demo_site/scripts/serve.sh 8000
+Restart=on-failure
+RestartSec=5
+# 順番待ちの上限 (既定 5)
+Environment=MAX_QUEUE=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

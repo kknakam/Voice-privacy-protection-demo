@@ -1,3 +1,6 @@
 .DS_Store
 Thumbs.db
 node_modules/
+server/env.local
+server/work/
+__pycache__/
