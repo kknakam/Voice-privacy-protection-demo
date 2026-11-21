@@ -38,6 +38,48 @@ def use_research_code() -> None:
     if hub:
         import torch
         torch.hub.set_dir(hub)
+    patch_speechbrain_hub()
+
+
+def patch_speechbrain_hub() -> None:
+    """speechbrain 1.0.3 は、huggingface_hub 0.x を前提に書かれている。huggingface_hub 1.x (transformers 5.x が要る) との食い違いを、
+    インストール済みのパッケージを書き換えずに、speechbrain の中だけで、読み替える。何度呼んでもよい。
+      1. hf_hub_download の引数 use_auth_token は、1.x では token に変わった (渡すと TypeError) -> token として渡す
+      2. ファイルが見つからない例外 (EntryNotFoundError など) を、speechbrain が、「ハブにない」(ValueError) として扱う
+         -> x-vector のリポジトリにない、任意のファイル (custom.py) を、「なし」として読み飛ばせる
+    huggingface_hub 全体は書き換えない (transformers は、任意のファイルの有無を、EntryNotFoundError で判断するので、影響が出る)。"""
+    try:
+        import importlib
+        import inspect
+
+        import huggingface_hub
+        importlib.import_module("speechbrain.utils.fetching")
+    except ImportError:
+        return
+    # speechbrain は、モジュールを遅延して読み込む。fetch 関数が、実際に使う名前空間 (fetch.__globals__) を直接書き換える
+    namespace = sys.modules["speechbrain.utils.fetching"].fetch.__globals__
+    hub = namespace["huggingface_hub"]
+    orig = huggingface_hub.hf_hub_download
+    if getattr(hub, "_voice_demo_compat", False) or "use_auth_token" in inspect.signature(orig).parameters:
+        return                                              # すでに読み替えてある、または、古い版で、そのまま使える
+
+    def download(*args, use_auth_token=None, **kwargs):
+        if use_auth_token is not None and "token" not in kwargs:
+            kwargs["token"] = use_auth_token
+        try:
+            return orig(*args, **kwargs)
+        except huggingface_hub.errors.EntryNotFoundError as e:       # LocalEntryNotFoundError を含む
+            raise ValueError("File not found on HF hub") from e
+
+    class Hub:
+        """huggingface_hub の代わりに、speechbrain.utils.fetching に見せるもの。hf_hub_download だけ読み替え、ほかはそのまま使う"""
+        _voice_demo_compat = True
+        hf_hub_download = staticmethod(download)
+
+        def __getattr__(self, name):
+            return getattr(huggingface_hub, name)
+
+    namespace["huggingface_hub"] = Hub()
 
 
 def read_wav(path: str) -> np.ndarray:

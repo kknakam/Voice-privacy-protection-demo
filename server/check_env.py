@@ -42,7 +42,7 @@ def check_python() -> None:
         if torch.cuda.is_available():
             add("GPU (CUDA)", "OK", torch.cuda.get_device_name(0))
         else:
-            add("GPU (CUDA)", "注意", "GPU が見えません。生成は、CPU では、非常に遅くなります (scripts/run_attack.sh --device cpu)")
+            add("GPU (CUDA)", "NG", "GPU が見えません。敵対的音声の生成 (Step 2) は、GPU がないと動きません (装置を cuda に固定しています)。英語の音声合成も、CPU では 1 本あたり約 10 秒かかります。nvidia-smi と、PyTorch の CUDA の版 (requirements.txt の説明) を確認してください")
     except Exception:  # noqa: BLE001
         pass
 

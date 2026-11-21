@@ -80,5 +80,48 @@ class Quantize(unittest.TestCase):
         self.assertLessEqual(float(np.abs(back - a).max()), (q["hi"] - q["lo"]) / 255 / 2 + 1e-4)
 
 
+class SpeechbrainHubCompat(unittest.TestCase):
+    """speechbrain 1.0.3 と huggingface_hub 1.x の食い違いを、speechbrain の中だけで読み替える処理 (core.patch_speechbrain_hub)。ネットワークは使わない"""
+
+    @staticmethod
+    def namespace():
+        import sys
+        return sys.modules["speechbrain.utils.fetching"].fetch.__globals__          # speechbrain の fetch 関数が、実際に参照する名前空間
+
+    def test_translates_inside_speechbrain_only(self):
+        import huggingface_hub
+        global_before = huggingface_hub.hf_hub_download
+        core.patch_speechbrain_hub()
+        hub = self.namespace()["huggingface_hub"]
+        self.assertTrue(getattr(hub, "_voice_demo_compat", False))
+        self.assertIs(huggingface_hub.hf_hub_download, global_before)         # huggingface_hub 全体は、書き換えない
+        self.assertIs(hub.constants, huggingface_hub.constants)               # ほかの属性は、そのまま使える
+        # use_auth_token を渡しても TypeError にならず、ファイルがない (キャッシュにも) ときは、speechbrain が扱える ValueError になる
+        with self.assertRaises(ValueError) as cm:
+            hub.hf_hub_download(repo_id="no-such-owner/no-such-repo", filename="custom.py", use_auth_token=None, revision=None, local_files_only=True)
+        self.assertEqual(str(cm.exception), "File not found on HF hub")
+        with self.assertRaises(ValueError):
+            hub.hf_hub_download(repo_id="no-such-owner/no-such-repo", filename="x.ckpt", use_auth_token="T", local_files_only=True)
+        core.patch_speechbrain_hub()                                          # 2 回呼んでも、二重に包まない
+        self.assertIs(self.namespace()["huggingface_hub"], hub)
+
+    def test_applies_when_called_before_speechbrain_is_imported(self):
+        """新しいプロセスで、speechbrain を、まだ読み込んでいない状態で呼んでも、実際に使われる名前空間に効くこと (遅延読み込みの落とし穴)"""
+        import subprocess
+        import sys
+        code = (
+            "import sys; sys.path.insert(0, %r)\n"
+            "from server import core\n"
+            "assert 'speechbrain' not in sys.modules\n"
+            "core.patch_speechbrain_hub()\n"
+            "from speechbrain.inference.interfaces import Pretrained   # 実際の使われ方と同じ入口\n"
+            "import speechbrain.inference.interfaces as itf\n"
+            "assert getattr(itf.fetch.__globals__['huggingface_hub'], '_voice_demo_compat', False), 'patch not effective'\n"
+            "print('OK')\n"
+        ) % str(Path(__file__).resolve().parent.parent)
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+        self.assertEqual(r.stdout.strip().splitlines()[-1:] or [r.stderr[-300:]], ["OK"], r.stderr[-300:])
+
+
 if __name__ == "__main__":
     unittest.main()

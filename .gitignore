@@ -2,5 +2,6 @@
 Thumbs.db
 node_modules/
 server/env.local
+server/env.local.bak-*
 server/work/
 __pycache__/

@@ -34,6 +34,8 @@
     build_pool.py            ターゲット話者の候補群を作る (開発用)
     test_core.py             敵対的音声の生成のうち、GPU を使わない部分の試験
     test_tts.py              音声合成のうち、モデルを使わない部分の試験 (英語の正規化、日本語の音素化と分割)
+    setup_server.py          研究室のサーバへの構築を自動で行う本体 (scripts/setup_server.sh から呼ぶ。標準ライブラリだけ)
+    test_setup.py            構築の自動化の、判断の部分の試験 (ドライバに合う PyTorch の選択、venv が使えない環境への切り替えなど)
     check_api.py             起動中のサーバの、クローンの合成の API の通し試験 (モデルを実際に使う)
     data/pool.npz            候補 24 人の x-vector
     data/tts.json            音声合成の語彙と記号表 (モデルの学習時のものと同じ。変更しない)
@@ -41,7 +43,7 @@
     testdata/                試験の正解データ (ブラウザで動かしていた実装の結果など)
     env.example              環境設定の書き方 (server/env.local にコピーして書き換える。env.local は git に入れない)
     weights/*.sha256         重み (x-vector、英語の SpeechT5、UTMOS) の SHA-256 の一覧 (scripts/copy_weights.sh が照合に使う)
-  scripts/                   実行の入口のシェルスクリプト (serve.sh、start.sh / stop.sh / status.sh、run_attack.sh、check_env.sh、copy_weights.sh、tunnel.sh、build_pool.sh)
+  scripts/                   実行の入口のシェルスクリプト (setup_server.sh (研究室のサーバへの構築を自動で行う)、serve.sh、start.sh / stop.sh / status.sh、run_attack.sh、check_env.sh、copy_weights.sh、tunnel.sh、build_pool.sh)
   deploy/                    研究室のサーバへ置くための雛形 (systemd、Cloudflare Tunnel、nginx)
   site/                      公開する部分 (Cloudflare の出力先)
     index.html               画面 (「デモ」と「研究のシナリオ」のパネルの中身は、MDX から生成した部分。見出し画面とフッターは手書き)
@@ -239,7 +241,40 @@ Step 2 は Python と GPU が要るので、静的な配信だけ (Cloudflare Pa
 | 重み | x-vector 約 32 MB、英語の SpeechT5 とボコーダ 約 1.2 GB (使うのは約 640 MB)、UTMOS 約 411 MB。実行時にネットから取らないので、あらかじめ置きます (手順 5)。日本語の音声合成のモデル (約 308 MiB) は、リポジトリの `server/models_ja/` にあります |
 | HTTPS | マイクは HTTPS か `localhost` でしか使えません。Cloudflare Tunnel か、研究室にある nginx を使います |
 
-### 手順
+### 自動で行う (`scripts/setup_server.sh`)
+
+下の手順 2〜7 (仮想環境、パッケージ、研究のリポジトリの確認、重みのコピー、環境ファイル、通しの点検、systemd の設定ファイル) は、1 つのコマンドで行えます。**GPU のある機械で**、手順 1 (取得) のあとに実行してください。
+
+```bash
+cd demo_site
+scripts/setup_server.sh \
+  --mask-root /path/to/AntiCloning_mask \
+  --from-hf   元のホスト:/path/to/hf \
+  --from-hub  元のホスト:/path/to/torch_hub \
+  --smoke --start
+```
+
+まず、`--dry-run` を付けると、何を実行するかだけを表示します (何も書き込みません)。完了まで、新しい環境で、約 6 分 (ダウンロードの速さによる) です。
+
+| 指定 | 内容 |
+|---|---|
+| `--mask-root` | 研究のリポジトリ (`anticloning_mask/` を含むフォルダ)。省略すると、いくつかの場所を探す |
+| `--from-hf`、`--from-hub` | 重みのコピー元 (パス、または `ホスト:パス`)。すでに重みがそろっていれば、省略できる |
+| `--weights-dir` | 重みの置き場 (既定: リポジトリの 1 つ上の `weights/`。中に `hf/` と `torch_hub/` を作る) |
+| `--venv`、`--python` | 仮想環境の場所 (既定: リポジトリの `venv`)、それを作る Python (既定: `python3.10` など) |
+| `--cuda` | PyTorch の CUDA の版 (`cu126`、`cu128`、`cu129`)。既定は、ドライバから自動で選ぶ |
+| `--smoke`、`--start`、`--port` | 最後に、通しの点検を行う、サーバを起動する、ポート (既定 8000) |
+| `--skip-install`、`--skip-weights`、`--force-env`、`--allow-no-gpu` | パッケージの導入を飛ばす、重みを飛ばす、違う内容の `env.local` を上書きする (元のファイルは `.bak-日時` に残す)、GPU がなくても続ける (試験用) |
+
+- **事前の点検:** OS (Linux の x86_64)、Python (3.9〜3.12。動作確認は 3.10)、空き容量 (15 GiB 以上)、GPU とドライバ。**GPU がなければ、理由を示して、ここで止まります** (敵対的音声の生成は、GPU がないと動かないため)。
+- **仮想環境:** `python3 -m venv` が使えない環境 (`python3-venv` が入っていない) では、`get-pip.py` で pip を入れる方法に、自動で切り替えます。
+- **PyTorch の版:** ドライバが対応する CUDA の版 (`nvidia-smi`) から選びます。12.8 以上は PyPI の既定 (CUDA 12.8 版)、12.6〜12.7 は `cu126`、12.0〜12.5 は `cu126` (CUDA 12 の互換機能。未確認)、12.0 未満は止まります。Blackwell 世代の GPU には、12.8 以上のドライバが要ります。入れたあとに、PyTorch が GPU を認識するかも確かめます。
+- **一時領域:** pip のダウンロードの一時領域は、`/tmp` ではなく、リポジトリの `server/work/tmp/` に置きます (`/tmp` が小さい機械で失敗するため)。経過は `server/work/setup-pip.log` に残ります。
+- **やり直し:** 済んでいる工程は、飛ばします。失敗したら、原因を直して、同じコマンドを、もう一度実行してください。すでにある `server/env.local` は、内容が違っても、上書きしません。
+- **行わないこと:** HTTPS での公開 (手順 8)、`sudo` が要る作業 (systemd への登録は、置くコマンドを表示するだけ)、研究のリポジトリや重みの、取得元の用意。
+- **確認の範囲:** 開発環境で、まっさらなコピーから、最後まで通しで確かめました (NG 0、API の通し試験 38 項目を含む)。GPU なし、古いドライバ、CUDA 12.6 の場合は、`nvidia-smi` の模擬で、動作を確かめた段階です (実機では未確認)。
+
+### 手順 (手作業で行う場合)
 
 1. **取得**: `git clone` して、公開するブランチをチェックアウトします
 2. **Python の環境**: `python3 -m venv venv && venv/bin/pip install -r requirements.txt`。GPU とドライバが CUDA 12.8 の PyTorch に合わないときは、`requirements.txt` の説明のとおり、先に、合う版を入れます

@@ -14,7 +14,8 @@ torchaudio==2.8.0
 
 # x-vector (speechbrain/spkrec-xvect-voxceleb)。重みは、実行時にネットから取らない (HF_HUB_OFFLINE=1)。scripts/copy_weights.sh で置く
 speechbrain==1.0.3
-huggingface_hub==1.14.0    # speechbrain が使う。新しい版との組み合わせは、確かめていない
+huggingface_hub==1.14.0    # speechbrain と transformers が使う。speechbrain 1.0.3 は、huggingface_hub 0.x 向けなので、server/core.py の patch_speechbrain_hub が、1.x との食い違いを、実行時に読み替える
+requests==2.32.5           # speechbrain が読み込むが、依存として宣言していない (huggingface_hub 1.x は、requests を連れてこない)。入っていないと、x-vector を読み込めない
 
 numpy==2.2.6
 scipy==1.15.3
