@@ -26,7 +26,7 @@ for _ in $(seq 1 $((WAIT * 2))); do
     echo "起動に失敗しました (プロセスが終了しました)。今回のログの末尾 ($LOG):" >&2
     tail -c +$((OFFSET + 1)) "$LOG" | tr '\r' '\n' | grep -v 'Loading weights' | tail -n 15 | cut -c1-300 >&2; exit 1
   fi
-  if curl -fsS "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
+  if curl --noproxy '*' -fsS "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then      # 自分への接続は、プロキシ (http_proxy) を通さない
     echo "起動しました: http://127.0.0.1:$PORT/ (プロセス $PID、ログ $LOG)"
     echo "音声合成のモデルの読み込みは、このあとも続きます (約 20 秒)。scripts/status.sh の応答が \"state\": \"ready\" になれば、Step 3 も使えます"; exit 0
   fi
