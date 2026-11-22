@@ -346,6 +346,12 @@ class Handler(static_serve.Handler):
         pass
 
 
+class Server(http.server.ThreadingHTTPServer):
+    # 接続の待ち行列。標準は 5 で、前段 (Cloudflare Tunnel など) が、ページの資源ごとに接続を同時に張ると、あふれた接続が、
+    # 1 秒、3 秒、7 秒と、間隔を空けて再試行されて、読み込みが止まる (同時 200 接続で、最大約 30 秒止まるのを確かめた)
+    request_queue_size = 128
+
+
 def main() -> None:
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     host = os.environ.get("HOST", "127.0.0.1")
@@ -361,7 +367,7 @@ def main() -> None:
     else:
         TTS.start()                                   # モデルの読み込みは、別のスレッド。読み込み中も、サイトと Step 2 は使える
     log(f"http://{host}:{port}/  (順番待ちの上限 {MAX_QUEUE} 件ずつ。敵対的音声の生成と、クローンの合成で、別の順番待ち)")
-    http.server.ThreadingHTTPServer((host, port), partial(Handler, directory=str(static_serve.SITE))).serve_forever()
+    Server((host, port), partial(Handler, directory=str(static_serve.SITE))).serve_forever()
 
 
 if __name__ == "__main__":
